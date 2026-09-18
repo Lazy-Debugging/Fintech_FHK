@@ -231,26 +231,6 @@ class AiyoPaymentService
             Log::warning('Upstream respon.php fallback failed: ' . $e->getMessage());
         }
 
-        // Jika dev fallback aktif saat offline/tanpa koneksi
-        if (config('aiyo.allow_dev_fallback', true)) {
-            $mockInvoiceId = 'INV-' . strtoupper(substr(md5($referenceId . microtime()), 0, 16));
-            $mockToken = 'mock_dev_' . bin2hex(random_bytes(16));
-            $mockQr = "00020101021226670016ID.CO.AIYO.WWW01189360000000000000000215{$mockInvoiceId}51440014ID.LINKAJA.WWW0215{$mockInvoiceId}520454995303360540" . strlen((string)$payAmount) . $payAmount . "5802ID5914FRESH HYDRATION6007JAKARTA61051011062240720{$referenceId}6304ABCD";
-
-            return [
-                'success'          => true,
-                'invoiceId'        => $mockInvoiceId,
-                'accessToken'      => $mockToken,
-                'referenceId'      => $referenceId,
-                'payAmount'        => $payAmount,
-                'items'            => $items,
-                'qrContent'        => $mockQr,
-                'invoiceUrl'       => route('kiosk.qris', ['invoiceId' => $mockInvoiceId]),
-                'is_dev_fallback'  => true,
-                'raw_response'     => $result
-            ];
-        }
-
         return [
             'success' => false,
             'message' => $result['responseMessage'] ?? 'Gagal membuat tagihan invoice di AiYO',
