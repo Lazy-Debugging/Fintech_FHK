@@ -24,13 +24,25 @@ class AiyoPaymentService
 
     public function __construct()
     {
-        $this->host = rtrim(config('aiyo.host', 'https://api-bills-invoice.aiyo.id'), '/');
-        $this->username = config('aiyo.username', 'FRESH_HYDRATION_KIOS');
-        $this->password = config('aiyo.password', 'pass_7A9uubvhF0XQZ7gePewlItKt3Uzg2I');
-        $this->billMasterId = config('aiyo.bill_master_id', 'uxGSWGOqpeqLaG5Qn1DH');
-        $this->apiKey = config('aiyo.api_key', 'key_SxcKMQ8cMbckjRMLvNCy1hNqUMGSo4');
-        $this->apiSecret = config('aiyo.api_secret', 'secret_WU3Ba45FwWE9sDe4uxUarvM4P6KMB4');
-        $this->callbackUrl = config('aiyo.callback_url', 'https://mesinbayar.com/app/fhk/callback/');
+        $configFile = base_path('aiyo_config.php');
+        if (file_exists($configFile)) {
+            include $configFile;
+            $this->host = isset($host) ? rtrim($host, '/') : "https://api-bills-invoice.aiyo.id";
+            $this->username = $username ?? "FRESH_HYDRATION_KIOS";
+            $this->password = $password ?? "pass_7A9uubvhF0XQZ7gePewlItKt3Uzg2I";
+            $this->billMasterId = $billMasterId ?? "uxGSWGOqpeqLaG5Qn1DH";
+            $this->apiKey = $api_key ?? "key_SxcKMQ8cMbckjRMLvNCy1hNqUMGSo4";
+            $this->apiSecret = $api_secret ?? "secret_WU3Ba45FwWE9sDe4uxUarvM4P6KMB4";
+            $this->callbackUrl = $callbackUrl ?? "https://mesinbayar.com/app/fhk/callback/";
+        } else {
+            $this->host = rtrim(config('aiyo.host', 'https://api-bills-invoice.aiyo.id'), '/');
+            $this->username = config('aiyo.username', 'FRESH_HYDRATION_KIOS');
+            $this->password = config('aiyo.password', 'pass_7A9uubvhF0XQZ7gePewlItKt3Uzg2I');
+            $this->billMasterId = config('aiyo.bill_master_id', 'uxGSWGOqpeqLaG5Qn1DH');
+            $this->apiKey = config('aiyo.api_key', 'key_SxcKMQ8cMbckjRMLvNCy1hNqUMGSo4');
+            $this->apiSecret = config('aiyo.api_secret', 'secret_WU3Ba45FwWE9sDe4uxUarvM4P6KMB4');
+            $this->callbackUrl = config('aiyo.callback_url', 'https://mesinbayar.com/app/fhk/callback/');
+        }
         $this->qrisBankCode = config('aiyo.qris_bank_code', '503');
     }
 
