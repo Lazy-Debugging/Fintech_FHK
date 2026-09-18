@@ -78,10 +78,14 @@ Route::get('/icons/{icon}', function (string $icon) {
 // Layar Frontend Kios PWA
 Route::get('/kiosk', [KioskScreenController::class, 'index'])->name('kiosk.home');
 // URL compatibility for the dashboard/external AiYO entry point.
+Route::get('/app/fhk', [KioskScreenController::class, 'index']);
+Route::get('/app/fhk/', [KioskScreenController::class, 'index']);
 Route::get('/app/fhk/kiosk', [KioskScreenController::class, 'index'])->name('kiosk.external');
 Route::get('/kiosk/qris/{invoiceId}', [KioskScreenController::class, 'qris'])->name('kiosk.qris');
 Route::get('/kiosk/dispensing/{invoiceId}', [KioskScreenController::class, 'dispensing'])->name('kiosk.dispensing');
 Route::get('/kiosk/receipt/{invoiceId}', [KioskScreenController::class, 'receipt'])->name('kiosk.receipt');
+Route::post('/api/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
+Route::get('/api/kiosk/payment-status/{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
 
 // AiYO Bills Invoice Gateway Callback Webhook (Target: https://mesinbayar.com/app/fhk/callback/)
 Route::match(['get', 'post'], '/app/fhk/callback', [AiyoCallbackController::class, 'handleCallback'])->name('aiyo.callback');
