@@ -69,7 +69,18 @@
                 <span id="poll-status-text">Memeriksa status pembayaran otomatis setiap 2 detik</span>
             </div>
 
+            @if(!empty($transaksi->invoice_url) && str_contains($transaksi->invoice_url, 'aiyo.id'))
+            <div class="text-center">
+                <a href="{{ $transaksi->invoice_url }}" target="_blank"
+                   class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    <span>Buka Halaman Tagihan Resmi AiYO (Live Gateway) &rarr;</span>
+                </a>
+            </div>
+            @endif
+
             @if(config('app.debug'))
+
             <!-- Local development only: never shown in production. -->
             <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-center space-y-2">
                 <div class="text-[11px] text-slate-400">
