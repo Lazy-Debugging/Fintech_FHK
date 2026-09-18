@@ -104,11 +104,14 @@ class AiyoPaymentService
         $volumeMl    = (int) ($params['volumeMl'] ?? 500);
         $kioskName   = $params['kioskName'] ?? 'Fresh Hydration Kios';
 
-        // Variasi opsi pembayaran yang dicoba ke AiYO
+        // Variasi opsi metode pembayaran yang dicoba ke AiYO (persis seperti di respon.php):
+        // 1. QRIS dengan bankCode 503 (Slide 8)
+        // 2. QRIS langsung tanpa bankCode
+        // 3. General Invoice (null / tanpa paymentMethod) jika bank 503 belum di-whitelist di merchant (Slide 12-14)
         $paymentOptions = [
-            ['type' => 'QRIS', 'bankCode' => $this->qrisBankCode], // Slide 8: bankCode 503
-            ['type' => 'QRIS'],                                     // Direct QRIS
-            null                                                    // Opsi 2 General Invoice
+            ['type' => 'QRIS', 'bankCode' => $this->qrisBankCode],
+            ['type' => 'QRIS'],
+            null
         ];
 
         $pathInvoice = '/api/v1/invoice';
@@ -127,12 +130,12 @@ class AiyoPaymentService
 
         foreach ($paymentOptions as $opt) {
             $body = [
-                'invoiceName'   => "FHK {$waterType} {$volumeMl}ml - {$kioskName}",
+                'invoiceName'   => "FHK {$waterType} {$volumeMl}ml",
                 'referenceId'   => $referenceId,
                 'userName'      => $params['userName'] ?? 'Pengunjung Kios',
                 'userEmail'     => $params['userEmail'] ?? 'customer@fhk.id',
                 'userPhone'     => $params['userPhone'] ?? '0812000000',
-                'remarks'       => "Refill Air {$waterType} {$volumeMl}ml",
+                'remarks'       => $params['remarks'] ?? "Refill Air {$waterType} {$volumeMl}ml",
                 'payAmount'     => $payAmount,
                 'expireTime'    => date('Y-m-d\TH:i', strtotime('+3 hour')),
                 'billMasterId'  => $this->billMasterId,
@@ -148,15 +151,15 @@ class AiyoPaymentService
             $signature = hash_hmac('sha256', $dataToSign, $this->apiSecret);
 
             $headers = [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . $accessToken,
-                'x-aiyo-key'        => $this->apiKey,
-                'x-aiyo-signature'  => $signature
+                "Content-Type: application/json",
+                "Authorization: Bearer " . $accessToken,
+                "x-aiyo-key: " . $this->apiKey,
+                "x-aiyo-signature: " . $signature
             ];
 
             try {
                 $ch = curl_init($urlCreateInvoice);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
                 curl_setopt($ch, CURLOPT_POST, 1);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
                 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
@@ -167,10 +170,10 @@ class AiyoPaymentService
 
                 $result = json_decode($responseBody, true);
 
-                // Jika berhasil mendapatkan QRIS live dari AiYO
+                // Jika berhasil mendapatkan respon sukses dari AiYO Gateway
                 if (isset($result['responseCode']) && $result['responseCode'] === '2000000') {
                     $invoiceData = $result['responseData'] ?? [];
-                    Log::info("AiYO createInvoice: Sukses menghasilkan tagihan QRIS resmi AiYO!", ['invoiceId' => $invoiceData['invoiceId'] ?? null]);
+                    Log::info("AiYO createInvoice: Sukses membuat invoice resmi AiYO!", ['invoiceId' => $invoiceData['invoiceId'] ?? null]);
                     return [
                         'success'           => true,
                         'invoiceId'         => $invoiceData['invoiceId'] ?? null,
@@ -184,8 +187,9 @@ class AiyoPaymentService
                     ];
                 }
 
-                // Jika error bukan "Payment Bank Not Allowed" (misal IP Restriction 4010001), jangan coba opsi bank lain
-                if (isset($result['responseCode']) && $result['responseCode'] !== '4000001') {
+                $respMsg = $result['responseMessage'] ?? '';
+                // Jika error "Bank Not Allowed", jangan break! Lanjutkan loop mencoba opsi berikutnya
+                if (!str_contains($respMsg, 'Bank Not Allowed') && !str_contains($respMsg, 'Not Allowed')) {
                     break;
                 }
             } catch (\Throwable $e) {
