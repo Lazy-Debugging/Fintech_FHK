@@ -25,15 +25,20 @@
     </div>
     @endif
 
-    <!-- Form Submit Tersembunyi (Langsung Redirect ke AiYO Gateway) -->
-    <form id="kiosk-order-form" method="POST" action="{{ url('kiosk/order') }}" class="hidden">
+    <!-- Form Submit Tersembunyi (Langsung ke respon.php -> Redirect ke AiYO Gateway) -->
+    <form id="kiosk-order-form" method="POST" action="respon.php" class="hidden">
         @csrf
         <input type="hidden" name="kiosk_id" value="{{ $kiosk->id }}">
         <input type="hidden" name="water_type" id="form-water-type" value="COLD">
         <input type="hidden" name="volume_ml" id="form-volume-ml" value="500">
+        <input type="hidden" name="payAmount" id="form-pay-amount" value="3500">
+        <input type="hidden" name="redirect" value="1">
         <input type="hidden" name="user_name" value="{{ auth()->user()?->name ?? 'Pengunjung Kios FHK' }}">
+        <input type="hidden" name="userName" value="{{ auth()->user()?->name ?? 'Pengunjung Kios FHK' }}">
         <input type="hidden" name="user_email" value="{{ auth()->user()?->email ?? 'customer@fhk.id' }}">
+        <input type="hidden" name="userEmail" value="{{ auth()->user()?->email ?? 'customer@fhk.id' }}">
         <input type="hidden" name="user_phone" value="0812000000">
+        <input type="hidden" name="userPhone" value="0812000000">
         <input type="hidden" name="voucher_code" id="form-voucher-code" value="">
     </form>
 
@@ -261,9 +266,13 @@
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i> <span>Membuka AiYO QRIS...</span>';
 
+        const currentPrices = priceMatrix[selectedTemp];
+        const total = currentPrices[selectedVol];
+
         const form = document.getElementById('kiosk-order-form');
         document.getElementById('form-water-type').value = selectedTemp;
         document.getElementById('form-volume-ml').value = selectedVol;
+        document.getElementById('form-pay-amount').value = total;
 
         @auth
         const voucherInput = document.getElementById('voucher-code');
@@ -272,11 +281,11 @@
         }
         @endauth
 
-        // Tentukan URL action secara dinamis berdasarkan URL saat ini di browser (kompatibel penuh dengan cPanel subpath)
+        // Tentukan URL action mengarah ke respon.php (sesuai nama file di modul PPT DBI)
         const currentPath = window.location.pathname.replace(/\/kiosk\/?$/, '').replace(/\/$/, '');
-        form.action = (currentPath ? currentPath : '') + '/kiosk/order';
+        form.action = (currentPath ? currentPath : '') + '/respon.php';
 
-        // Submit form browser langsung - respon server 302 akan langsung mengarahkan browser ke halaman AiYO
+        // Submit form browser langsung - respon.php akan langsung mengarahkan browser ke halaman resmi AiYO
         form.submit();
     }
 

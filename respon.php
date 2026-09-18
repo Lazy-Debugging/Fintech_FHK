@@ -184,8 +184,13 @@ if ($isJson) {
     exit;
 }
 
-// 6. Output HTML Biasa Sesuai Slide 25 & 26
+// 6. Output HTML Biasa Sesuai Slide 25 & 26 (atau redirect langsung jika diminta oleh Kios)
 if (!empty($invoiceId) && !empty($invoiceAccessToken)) {
+    if (!empty($invoiceURL) && !empty($_REQUEST['redirect'])) {
+        header("Location: " . $invoiceURL);
+        exit;
+    }
+
     echo "<div style='font-family: sans-serif; padding: 20px; max-width: 600px; margin: 20px auto; border: 1px solid #10b981; border-radius: 12px; background: #f0fdf4;'>";
     echo "<h2 style='color: #047857;'>✅ Invoice Berhasil Dibuat (AiYO QRIS)!</h2>";
     echo "<p><strong>Invoice ID:</strong> " . htmlspecialchars($invoiceId) . "</p>";

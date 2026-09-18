@@ -98,6 +98,33 @@ Route::match(['get', 'post'], '/app/fhk/callback/', [AiyoCallbackController::cla
 Route::match(['get', 'post'], '/callback', [AiyoCallbackController::class, 'handleCallback']);
 Route::match(['get', 'post'], '/callback/', [AiyoCallbackController::class, 'handleCallback']);
 Route::match(['get', 'post'], '/callback.php', [AiyoCallbackController::class, 'handleCallback']);
+Route::match(['get', 'post'], '/app/fhk/callback.php', [AiyoCallbackController::class, 'handleCallback']);
+Route::match(['get', 'post'], '/fhk/callback.php', [AiyoCallbackController::class, 'handleCallback']);
+
+// Standalone PPT DBI Route Aliases (respon.php, token.php, cek.php)
+Route::match(['get', 'post'], '/respon.php', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder'])->name('respon.php');
+Route::match(['get', 'post'], '/app/fhk/respon.php', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
+Route::match(['get', 'post'], '/fhk/respon.php', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
+
+Route::match(['get', 'post'], '/token.php', function () {
+    require base_path('token.php');
+});
+Route::match(['get', 'post'], '/app/fhk/token.php', function () {
+    require base_path('token.php');
+});
+Route::match(['get', 'post'], '/fhk/token.php', function () {
+    require base_path('token.php');
+});
+
+Route::match(['get', 'post'], '/cek.php', function () {
+    require base_path('cek.php');
+});
+Route::match(['get', 'post'], '/app/fhk/cek.php', function () {
+    require base_path('cek.php');
+});
+Route::match(['get', 'post'], '/fhk/cek.php', function () {
+    require base_path('cek.php');
+});
 
 
 // Area administrasi terpisah dari dashboard publik.

@@ -25,5 +25,8 @@ class VerifyCsrfToken extends Middleware
         'fhk/kiosk/order',
         'app/fhk/api/kiosk/*',
         'fhk/api/kiosk/*',
+        'respon.php',
+        'app/fhk/respon.php',
+        'fhk/respon.php',
     ];
 }
