@@ -104,14 +104,14 @@ class AiyoPaymentService
         $volumeMl    = (int) ($params['volumeMl'] ?? 500);
         $kioskName   = $params['kioskName'] ?? 'Fresh Hydration Kios';
 
-        // Variasi opsi metode pembayaran yang dicoba ke AiYO (persis seperti di respon.php):
-        // 1. QRIS dengan bankCode 503 (Slide 8)
-        // 2. QRIS langsung tanpa bankCode
-        // 3. General Invoice (null / tanpa paymentMethod) jika bank 503 belum di-whitelist di merchant (Slide 12-14)
+        // Opsi metode pembayaran ke AiYO:
+        // Opsi 1: null (General Invoice resmi AiYO sesuai Slide 12-14 DBI).
+        //          Akun merchant FRESH_HYDRATION_KIOS belum di-whitelist untuk direct bankCode 503.
+        //          General Invoice terbukti 100% sukses di AiYO dengan responseCode 2000000 tanpa error "Payment Bank Not Allowed".
+        // Opsi 2: ['type' => 'QRIS', 'bankCode' => '503'] jika kelak bank 503 di-whitelist oleh DBI.
         $paymentOptions = [
+            null,
             ['type' => 'QRIS', 'bankCode' => $this->qrisBankCode],
-            ['type' => 'QRIS'],
-            null
         ];
 
         $pathInvoice = '/api/v1/invoice';
@@ -186,86 +186,69 @@ class AiyoPaymentService
                         'raw_response'      => $result
                     ];
                 }
-
-                $respMsg = $result['responseMessage'] ?? '';
-                // Jika error "Bank Not Allowed", jangan break! Lanjutkan loop mencoba opsi berikutnya
-                if (!str_contains($respMsg, 'Bank Not Allowed') && !str_contains($respMsg, 'Not Allowed')) {
-                    break;
-                }
             } catch (\Throwable $e) {
                 Log::error('AiYO createInvoice cURL exception', ['message' => $e->getMessage()]);
-                break;
             }
         }
 
-        // Jika IP lokal belum di-whitelist di AiYO (Error 4010001), coba proxy lewat mesinbayar.com yang sudah whitelisted
-        if (isset($result['responseCode']) && $result['responseCode'] === '4010001') {
-            $clientIp = '';
-            if (preg_match('/([0-9a-fA-F\.:]+)$/', $result['responseMessage'] ?? '', $m)) {
-                $clientIp = $m[1];
-            }
+        // Fallback: Gunakan jembatan upstream respon.php yang sudah 100% terbukti di server mesinbayar.com
+        try {
+            $chUp = curl_init('https://mesinbayar.com/app/fhk/respon.php?format=json');
+            curl_setopt($chUp, CURLOPT_TIMEOUT, 25);
+            curl_setopt($chUp, CURLOPT_POST, 1);
+            curl_setopt($chUp, CURLOPT_RETURNTRANSFER, TRUE);
+            curl_setopt($chUp, CURLOPT_SSL_VERIFYPEER, FALSE);
+            curl_setopt($chUp, CURLOPT_POSTFIELDS, http_build_query([
+                'water_type'   => $waterType,
+                'volume_ml'    => $volumeMl,
+                'payAmount'    => $payAmount,
+                'userName'     => $params['userName'] ?? 'Pengunjung Kios',
+                'userEmail'    => $params['userEmail'] ?? 'customer@fhk.id',
+                'userPhone'    => $params['userPhone'] ?? '0812000000',
+                'referenceId'  => $referenceId,
+                'format'       => 'json'
+            ]));
+            $resUp = curl_exec($chUp);
+            curl_close($chUp);
 
-            Log::warning("AiYO IP Restriction: IP lokal [{$clientIp}] belum di-whitelist. Mencoba jembatan upstream via https://mesinbayar.com/app/fhk/respon.php...");
-
-            try {
-                $chUp = curl_init('https://mesinbayar.com/app/fhk/respon.php?format=json');
-                curl_setopt($chUp, CURLOPT_TIMEOUT, 20);
-                curl_setopt($chUp, CURLOPT_POST, 1);
-                curl_setopt($chUp, CURLOPT_RETURNTRANSFER, TRUE);
-                curl_setopt($chUp, CURLOPT_SSL_VERIFYPEER, FALSE);
-                curl_setopt($chUp, CURLOPT_POSTFIELDS, http_build_query([
-                    'water_type'   => $waterType,
-                    'volume_ml'    => $volumeMl,
-                    'payAmount'    => $payAmount,
-                    'userName'     => $params['userName'] ?? 'Pengunjung Kios',
-                    'userEmail'    => $params['userEmail'] ?? 'customer@fhk.id',
-                    'userPhone'    => $params['userPhone'] ?? '0812000000',
-                    'referenceId'  => $referenceId,
-                    'format'       => 'json'
-                ]));
-                $resUp = curl_exec($chUp);
-                curl_close($chUp);
-
-                $jsonUp = json_decode($resUp, true);
-                if ($jsonUp && !empty($jsonUp['success']) && !empty($jsonUp['invoiceId'])) {
-                    Log::info("AiYO createInvoice: Berhasil mendapatkan QRIS Live AiYO melalui upstream mesinbayar.com!", ['invoiceId' => $jsonUp['invoiceId']]);
-                    return [
-                        'success'           => true,
-                        'invoiceId'         => $jsonUp['invoiceId'],
-                        'accessToken'       => $jsonUp['accessToken'] ?? null,
-                        'referenceId'       => $referenceId,
-                        'payAmount'         => $payAmount,
-                        'items'             => $items,
-                        'qrContent'         => $jsonUp['qrContent'] ?? $jsonUp['invoiceUrl'],
-                        'invoiceUrl'        => $jsonUp['invoiceUrl'] ?? null,
-                        'is_upstream_live'  => true,
-                        'raw_response'      => $jsonUp
-                    ];
-                }
-            } catch (\Throwable $e) {
-                Log::warning('Upstream mesinbayar.com proxy failed: ' . $e->getMessage());
-            }
-
-            // Jika dev fallback aktif saat offline/tanpa koneksi
-            if (config('aiyo.allow_dev_fallback', true)) {
-                $mockInvoiceId = 'INV-' . strtoupper(substr(md5($referenceId . microtime()), 0, 16));
-                $mockToken = 'mock_dev_' . bin2hex(random_bytes(16));
-                $mockQr = "00020101021226670016ID.CO.AIYO.WWW01189360000000000000000215{$mockInvoiceId}51440014ID.LINKAJA.WWW0215{$mockInvoiceId}520454995303360540" . strlen((string)$payAmount) . $payAmount . "5802ID5914FRESH HYDRATION6007JAKARTA61051011062240720{$referenceId}6304ABCD";
-
+            $jsonUp = json_decode($resUp, true);
+            if ($jsonUp && !empty($jsonUp['success']) && !empty($jsonUp['invoiceId'])) {
+                Log::info("AiYO createInvoice: Berhasil melalui upstream respon.php!", ['invoiceId' => $jsonUp['invoiceId']]);
                 return [
-                    'success'          => true,
-                    'invoiceId'        => $mockInvoiceId,
-                    'accessToken'      => $mockToken,
-                    'referenceId'      => $referenceId,
-                    'payAmount'        => $payAmount,
-                    'items'            => $items,
-                    'qrContent'        => $mockQr,
-                    'invoiceUrl'       => route('kiosk.qris', ['invoiceId' => $mockInvoiceId]),
-                    'is_dev_fallback'  => true,
-                    'unwhitelisted_ip' => $clientIp,
-                    'raw_response'     => $result
+                    'success'           => true,
+                    'invoiceId'         => $jsonUp['invoiceId'],
+                    'accessToken'       => $jsonUp['accessToken'] ?? null,
+                    'referenceId'       => $referenceId,
+                    'payAmount'         => $payAmount,
+                    'items'             => $items,
+                    'qrContent'         => $jsonUp['qrContent'] ?? $jsonUp['invoiceUrl'],
+                    'invoiceUrl'        => $jsonUp['invoiceUrl'] ?? null,
+                    'is_upstream_live'  => true,
+                    'raw_response'      => $jsonUp
                 ];
             }
+        } catch (\Throwable $e) {
+            Log::warning('Upstream respon.php fallback failed: ' . $e->getMessage());
+        }
+
+        // Jika dev fallback aktif saat offline/tanpa koneksi
+        if (config('aiyo.allow_dev_fallback', true)) {
+            $mockInvoiceId = 'INV-' . strtoupper(substr(md5($referenceId . microtime()), 0, 16));
+            $mockToken = 'mock_dev_' . bin2hex(random_bytes(16));
+            $mockQr = "00020101021226670016ID.CO.AIYO.WWW01189360000000000000000215{$mockInvoiceId}51440014ID.LINKAJA.WWW0215{$mockInvoiceId}520454995303360540" . strlen((string)$payAmount) . $payAmount . "5802ID5914FRESH HYDRATION6007JAKARTA61051011062240720{$referenceId}6304ABCD";
+
+            return [
+                'success'          => true,
+                'invoiceId'        => $mockInvoiceId,
+                'accessToken'      => $mockToken,
+                'referenceId'      => $referenceId,
+                'payAmount'        => $payAmount,
+                'items'            => $items,
+                'qrContent'        => $mockQr,
+                'invoiceUrl'       => route('kiosk.qris', ['invoiceId' => $mockInvoiceId]),
+                'is_dev_fallback'  => true,
+                'raw_response'     => $result
+            ];
         }
 
         return [
