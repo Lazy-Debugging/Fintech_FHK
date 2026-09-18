@@ -192,25 +192,54 @@ if (!empty($invoiceId) && !empty($invoiceAccessToken)) {
         $invoiceURL = "https://bills-invoice.aiyo.id/bills/invoice/{$invoiceId}?accessToken=" . urlencode($invoiceAccessToken);
     }
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' || !empty($_REQUEST['redirect'])) {
-        header("Location: " . $invoiceURL);
-        echo "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0;url=" . htmlspecialchars($invoiceURL) . "'><script>window.location.replace('" . addslashes($invoiceURL) . "');</script></head><body style='font-family:sans-serif;text-align:center;padding-top:50px;'>Mengalihkan ke AiYO Bills Invoice Gateway...<br/><br/><a href='" . htmlspecialchars($invoiceURL) . "' style='display:inline-block;padding:10px 20px;background:#0284c7;color:white;border-radius:8px;text-decoration:none;font-weight:bold;'>Klik di sini jika tidak otomatis dialihkan &rarr;</a></body></html>";
-        exit;
-    }
-
-    echo "<div style='font-family: sans-serif; padding: 20px; max-width: 600px; margin: 20px auto; border: 1px solid #10b981; border-radius: 12px; background: #f0fdf4;'>";
-    echo "<h2 style='color: #047857;'>✅ Invoice Berhasil Dibuat (AiYO QRIS)!</h2>";
-    echo "<p><strong>Invoice ID:</strong> " . htmlspecialchars($invoiceId) . "</p>";
-    echo "<p><strong>Access Token:</strong> " . htmlspecialchars($invoiceAccessToken) . "</p>";
-    echo "<p><strong>Metode Pembayaran:</strong> QRIS Dinamis</p>";
-    echo "<p><strong>Nominal:</strong> Rp " . number_format($payAmount, 0, ',', '.') . "</p>";
-    echo "<p><strong>URL Callback:</strong> <code>{$callbackUrl}</code></p>";
-    echo "<hr style='border: 0; border-top: 1px dashed #6ee7b7; margin: 15px 0;'>";
-    echo "<a style='display:inline-block; padding: 10px 18px; background: #059669; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;' href='cek.php?invoiceId=" . urlencode($invoiceId) . "&accessToken=" . urlencode($invoiceAccessToken) . "'>🔍 Cek Status Invoice (cek.php)</a>";
-    if (!empty($invoiceURL)) {
-        echo " &nbsp; <a style='display:inline-block; padding: 10px 18px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;' href='" . htmlspecialchars($invoiceURL) . "' target='_blank'>📱 Buka Halaman QRIS AiYO</a>";
-    }
+    // Tampilkan halaman konfirmasi resmi sesuai modul Slide 25 & 26 dengan tombol QRIS dan auto-redirect
+    echo "<!DOCTYPE html>";
+    echo "<html lang='id'>";
+    echo "<head>";
+    echo "<meta charset='UTF-8'>";
+    echo "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
+    echo "<title>Invoice AiYO QRIS Berhasil Dibuat</title>";
+    echo "</head>";
+    echo "<body style='background:#f8fafc; font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; margin:0; padding:20px;'>";
+    echo "<div style='padding: 24px; max-width: 580px; margin: 30px auto; border: 1px solid #10b981; border-radius: 16px; background: #ffffff; box-shadow: 0 10px 25px rgba(0,0,0,0.08);'>";
+    echo "<div style='display:flex; align-items:center; gap:12px; margin-bottom: 16px;'>";
+    echo "<div style='background:#ecfdf5; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; font-size:22px;'>✅</div>";
+    echo "<div>";
+    echo "<h2 style='margin:0; color:#047857; font-size: 20px;'>Invoice AiYO QRIS Berhasil Dibuat</h2>";
+    echo "<p style='margin:2px 0 0; color:#64748b; font-size: 13px;'>Diterbitkan langsung oleh AiYO Bills Invoice Gateway</p>";
     echo "</div>";
+    echo "</div>";
+
+    echo "<div style='background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin:16px 0; font-size: 14px; line-height: 1.8;'>";
+    echo "<div style='display:flex; justify-content:space-between;'><span style='color:#64748b;'>Pesanan:</span><strong style='color:#0f172a;'>Refill Air " . htmlspecialchars($waterType) . " " . htmlspecialchars($volumeMl) . " ml</strong></div>";
+    echo "<div style='display:flex; justify-content:space-between;'><span style='color:#64748b;'>Invoice ID:</span><strong style='color:#0284c7; font-family:monospace;'>" . htmlspecialchars($invoiceId) . "</strong></div>";
+    echo "<div style='display:flex; justify-content:space-between;'><span style='color:#64748b;'>Metode:</span><span style='background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:6px; font-weight:bold; font-size:12px;'>QRIS Dinamis</span></div>";
+    echo "<div style='display:flex; justify-content:space-between;'><span style='color:#64748b;'>URL Callback:</span><code style='font-size:11px;'>" . htmlspecialchars($callbackUrl) . "</code></div>";
+    echo "<div style='display:flex; justify-content:space-between; border-top:1px dashed #cbd5e1; padding-top:8px; margin-top:8px;'><span style='color:#64748b; font-weight:bold;'>Total Tagihan:</span><strong style='color:#059669; font-size:20px;'>Rp " . number_format($payAmount, 0, ',', '.') . "</strong></div>";
+    echo "</div>";
+
+    echo "<div style='display:flex; flex-direction:column; gap:10px; margin-top:20px;'>";
+    echo "<a id='btn-pay-aiyo' href='" . htmlspecialchars($invoiceURL) . "' style='display:block; text-align:center; padding:14px; background:#0284c7; color:white; text-decoration:none; border-radius:10px; font-weight:bold; font-size:15px; box-shadow:0 4px 12px rgba(2,132,199,0.3);'>📱 Buka Halaman Pembayaran QRIS AiYO &rarr;</a>";
+    echo "<a href='cek.php?invoiceId=" . urlencode($invoiceId) . "&accessToken=" . urlencode($invoiceAccessToken) . "' style='display:block; text-align:center; padding:12px; background:#f1f5f9; color:#334155; text-decoration:none; border-radius:10px; font-weight:bold; font-size:13px; border:1px solid #cbd5e1;'>🔍 Cek Status Invoice (cek.php)</a>";
+    echo "</div>";
+
+    echo "<p style='text-align:center; font-size:12px; color:#94a3b8; margin-top:16px;'>Dialihkan otomatis ke AiYO Gateway dalam <span id='countdown'>2</span> detik...</p>";
+
+    echo "<script>";
+    echo "let count = 2;";
+    echo "const timer = setInterval(() => {";
+    echo "    count--;";
+    echo "    const el = document.getElementById('countdown');";
+    echo "    if (el) el.textContent = count;";
+    echo "    if (count <= 0) {";
+    echo "        clearInterval(timer);";
+    echo "        window.location.href = '" . addslashes($invoiceURL) . "';";
+    echo "    }";
+    echo "}, 1000);";
+    echo "</script>";
+    echo "</div>";
+    echo "</body>";
+    echo "</html>";
 } else {
     echo "<div style='font-family: sans-serif; padding: 20px; max-width: 600px; margin: 20px auto; border: 1px solid #ef4444; border-radius: 12px; background: #fef2f2;'>";
     echo "<h2 style='color: #b91c1c;'>❌ Gagal Membuat Invoice AiYO</h2>";
