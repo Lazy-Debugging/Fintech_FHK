@@ -281,11 +281,12 @@
         }
         @endauth
 
-        // Tentukan URL action mengarah ke respon.php (sesuai nama file di modul PPT DBI)
-        form.action = "{{ url('respon.php') }}";
-
-        // Submit form browser langsung - respon.php akan langsung memproses invoice dan membuka AiYO QRIS resmi
-        form.submit();
+        // Arahkan browser langsung ke respon.php membawa parameter pilihan air & volume
+        const baseUrl = "{{ url('respon.php') }}";
+        const targetUrl = baseUrl + '?water_type=' + encodeURIComponent(selectedTemp) +
+                                    '&volume_ml=' + encodeURIComponent(selectedVol) +
+                                    '&payAmount=' + encodeURIComponent(total);
+        window.location.href = targetUrl;
     }
 
     // Initialize UI on load
