@@ -244,33 +244,21 @@
         window.addEventListener('offline', updateConnectionStatus);
         updateConnectionStatus();
 
+        // Bersihkan cache Service Worker lama agar browser selalu memuat kode terbaru dari server
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register(pwaServiceWorkerUrl, { scope: `${pwaBaseUrl}/` })
-                    .then((registration) => {
-                        if (registration.waiting) updateButton.hidden = false;
-
-                        registration.addEventListener('updatefound', () => {
-                            const worker = registration.installing;
-                            worker?.addEventListener('statechange', () => {
-                                if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    updateButton.hidden = false;
-                                }
-                            });
-                        });
-                    });
+            navigator.serviceWorker.getRegistrations().then((registrations) => {
+                for (let registration of registrations) {
+                    registration.unregister();
+                }
             });
+            if ('caches' in window) {
+                caches.keys().then((names) => {
+                    for (let name of names) {
+                        caches.delete(name);
+                    }
+                });
+            }
         }
-
-        updateButton?.addEventListener('click', () => {
-            navigator.serviceWorker.getRegistration().then((registration) => {
-                registration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
-            });
-        });
-
-        navigator.serviceWorker?.addEventListener('controllerchange', () => {
-            window.location.reload();
-        });
 
         // Realtime Clock Updater
         function updateClock() {

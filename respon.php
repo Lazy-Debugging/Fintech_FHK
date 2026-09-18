@@ -20,11 +20,11 @@ $requestedFormat = $_GET['format'] ?? $_POST['format'] ?? '';
 $isJson = ($requestedFormat === 'json') || (str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json'));
 
 // 2. Daftar variasi metode pembayaran yang dicoba ke AiYO
-// (Slide 8: QRIS 503 -> QRIS tanpa bankCode -> General Invoice tanpa paymentMethod)
+// null (General Invoice resmi AiYO) paling pertama agar langsung sukses tanpa delay penolakan bankCode
 $paymentOptions = [
-    ['type' => 'QRIS', 'bankCode' => '503'], // Slide 8
-    ['type' => 'QRIS'],                      // QRIS direct
-    null                                      // Opsi 2 General Invoice (Slide 12-14)
+    null,                                      // Opsi 1: General Invoice resmi AiYO (Slide 12-14)
+    ['type' => 'QRIS'],                       // Opsi 2: QRIS direct
+    ['type' => 'QRIS', 'bankCode' => '503'],  // Opsi 3: Slide 8
 ];
 
 // Jika user meminta tipe spesifik lewat URL (?type=none atau ?type=QRIS)
@@ -85,9 +85,11 @@ foreach ($paymentOptions as $opt) {
         "x-aiyo-key: " . $api_key,
         "x-aiyo-signature: " . $signatureCreateInvoice
     ];
-    curl_setopt($chCreateInvoice, CURLOPT_TIMEOUT, 30);
+    curl_setopt($chCreateInvoice, CURLOPT_TIMEOUT, 12);
     curl_setopt($chCreateInvoice, CURLOPT_POST, 1);
     curl_setopt($chCreateInvoice, CURLOPT_RETURNTRANSFER, TRUE);
+    curl_setopt($chCreateInvoice, CURLOPT_SSL_VERIFYPEER, FALSE);
+    curl_setopt($chCreateInvoice, CURLOPT_SSL_VERIFYHOST, 0);
     curl_setopt($chCreateInvoice, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
     curl_setopt($chCreateInvoice, CURLOPT_HTTPHEADER, $headersCreateInvoice);
     curl_setopt($chCreateInvoice, CURLOPT_POSTFIELDS, $rawBodyCreateInvoice);
