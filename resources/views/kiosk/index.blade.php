@@ -26,7 +26,7 @@
     @endif
 
     <!-- Form Submit Tersembunyi (Langsung ke respon.php -> Redirect ke AiYO Gateway) -->
-    <form id="kiosk-order-form" method="POST" action="respon.php" class="hidden">
+    <form id="kiosk-order-form" method="POST" action="{{ url('respon.php') }}" class="hidden">
         @csrf
         <input type="hidden" name="kiosk_id" value="{{ $kiosk->id }}">
         <input type="hidden" name="water_type" id="form-water-type" value="COLD">
@@ -282,10 +282,9 @@
         @endauth
 
         // Tentukan URL action mengarah ke respon.php (sesuai nama file di modul PPT DBI)
-        const currentPath = window.location.pathname.replace(/\/kiosk\/?$/, '').replace(/\/$/, '');
-        form.action = (currentPath ? currentPath : '') + '/respon.php';
+        form.action = "{{ url('respon.php') }}";
 
-        // Submit form browser langsung - respon.php akan langsung mengarahkan browser ke halaman resmi AiYO
+        // Submit form browser langsung - respon.php akan langsung memproses invoice dan membuka AiYO QRIS resmi
         form.submit();
     }
 

@@ -194,6 +194,7 @@ if (!empty($invoiceId) && !empty($invoiceAccessToken)) {
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' || !empty($_REQUEST['redirect'])) {
         header("Location: " . $invoiceURL);
+        echo "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='0;url=" . htmlspecialchars($invoiceURL) . "'><script>window.location.replace('" . addslashes($invoiceURL) . "');</script></head><body style='font-family:sans-serif;text-align:center;padding-top:50px;'>Mengalihkan ke AiYO Bills Invoice Gateway...<br/><br/><a href='" . htmlspecialchars($invoiceURL) . "' style='display:inline-block;padding:10px 20px;background:#0284c7;color:white;border-radius:8px;text-decoration:none;font-weight:bold;'>Klik di sini jika tidak otomatis dialihkan &rarr;</a></body></html>";
         exit;
     }
 

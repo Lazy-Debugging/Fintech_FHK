@@ -102,9 +102,15 @@ Route::match(['get', 'post'], '/app/fhk/callback.php', [AiyoCallbackController::
 Route::match(['get', 'post'], '/fhk/callback.php', [AiyoCallbackController::class, 'handleCallback']);
 
 // Standalone PPT DBI Route Aliases (respon.php, token.php, cek.php)
-Route::match(['get', 'post'], '/respon.php', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder'])->name('respon.php');
-Route::match(['get', 'post'], '/app/fhk/respon.php', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
-Route::match(['get', 'post'], '/fhk/respon.php', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
+Route::match(['get', 'post'], '/respon.php', function () {
+    require base_path('respon.php');
+})->name('respon.php');
+Route::match(['get', 'post'], '/app/fhk/respon.php', function () {
+    require base_path('respon.php');
+});
+Route::match(['get', 'post'], '/fhk/respon.php', function () {
+    require base_path('respon.php');
+});
 
 Route::match(['get', 'post'], '/token.php', function () {
     require base_path('token.php');

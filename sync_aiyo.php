@@ -7,6 +7,7 @@
 $repoRawBase = "https://raw.githubusercontent.com/Lazy-Debugging/Fintech_FHK/main/";
 
 $filesToSync = [
+    "respon.php",
     "resources/views/kiosk/index.blade.php",
     "resources/views/kiosk/qris_payment.blade.php",
     "app/Http/Controllers/Kiosk/OrderController.php",
