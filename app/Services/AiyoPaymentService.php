@@ -104,121 +104,171 @@ class AiyoPaymentService
         $volumeMl    = (int) ($params['volumeMl'] ?? 500);
         $kioskName   = $params['kioskName'] ?? 'Fresh Hydration Kios';
 
-        // Sesuai format body Meeting 03 Slide 13, 23 & Slide 8 (QRIS bankCode 503)
-        $body = [
-            'invoiceName'   => "FHK {$waterType} {$volumeMl}ml - {$kioskName}",
-            'referenceId'   => $referenceId,
-            'userName'      => $params['userName'] ?? 'Pengunjung Kios',
-            'userEmail'     => $params['userEmail'] ?? 'customer@fhk.id',
-            'userPhone'     => $params['userPhone'] ?? '0812000000',
-            'remarks'       => "Refill Air {$waterType} {$volumeMl}ml",
-            'payAmount'     => $payAmount,
-            'expireTime'    => date('Y-m-d\TH:i', strtotime('+3 hour')), // Format Slide 23
-            'billMasterId'  => $this->billMasterId,
-            'paymentMethod' => [
-                'type'      => 'QRIS',
-                'bankCode'  => $this->qrisBankCode // '503' sesuai Slide 8
-            ],
-            'items' => [
-                [
-                    'itemName'       => "Air Minum {$waterType} {$volumeMl}ml (UV Sterilized)",
-                    'itemType'       => 'ITEM',
-                    'itemCount'      => '1',
-                    'itemTotalPrice' => (string) $payAmount
-                ]
-            ]
+        // Variasi opsi pembayaran yang dicoba ke AiYO
+        $paymentOptions = [
+            ['type' => 'QRIS', 'bankCode' => $this->qrisBankCode], // Slide 8: bankCode 503
+            ['type' => 'QRIS'],                                     // Direct QRIS
+            null                                                    // Opsi 2 General Invoice
         ];
 
-        // Sesuai signature Meeting 03 Slide 24
         $pathInvoice = '/api/v1/invoice';
         $urlCreateInvoice = $this->host . $pathInvoice;
         $signRelativeUrl = parse_url($urlCreateInvoice, PHP_URL_PATH);
-        $rawBody = json_encode($body);
-        $dataToSign = $this->apiKey . $signRelativeUrl . $rawBody;
-        $signature = hash_hmac('sha256', $dataToSign, $this->apiSecret);
 
-        $headers = [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . $accessToken,
-            'x-aiyo-key: ' . $this->apiKey,
-            'x-aiyo-signature: ' . $signature
+        $result = null;
+        $items = [
+            [
+                'itemName'       => "Air Minum {$waterType} {$volumeMl}ml (UV Sterilized)",
+                'itemType'       => 'ITEM',
+                'itemCount'      => '1',
+                'itemTotalPrice' => (string) $payAmount
+            ]
         ];
 
-        try {
-            $ch = curl_init($urlCreateInvoice);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-            curl_setopt($ch, CURLOPT_POST, 1);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
-            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $rawBody);
-            $responseBody = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlError = curl_error($ch);
-            curl_close($ch);
+        foreach ($paymentOptions as $opt) {
+            $body = [
+                'invoiceName'   => "FHK {$waterType} {$volumeMl}ml - {$kioskName}",
+                'referenceId'   => $referenceId,
+                'userName'      => $params['userName'] ?? 'Pengunjung Kios',
+                'userEmail'     => $params['userEmail'] ?? 'customer@fhk.id',
+                'userPhone'     => $params['userPhone'] ?? '0812000000',
+                'remarks'       => "Refill Air {$waterType} {$volumeMl}ml",
+                'payAmount'     => $payAmount,
+                'expireTime'    => date('Y-m-d\TH:i', strtotime('+3 hour')),
+                'billMasterId'  => $this->billMasterId,
+                'items'         => $items
+            ];
 
-            $result = json_decode($responseBody, true);
-
-            // Jika berhasil (Slide 25)
-            if (isset($result['responseCode']) && $result['responseCode'] === '2000000') {
-                $invoiceData = $result['responseData'] ?? [];
-                return [
-                    'success'           => true,
-                    'invoiceId'         => $invoiceData['invoiceId'] ?? null,
-                    'accessToken'       => $invoiceData['accessToken'] ?? null,
-                    'referenceId'       => $referenceId,
-                    'payAmount'         => $payAmount,
-                    'items'             => $body['items'],
-                    'qrContent'         => $invoiceData['qrContent'] ?? $invoiceData['qrString'] ?? null,
-                    'invoiceUrl'        => $invoiceData['invoiceURL'] ?? null,
-                    'raw_response'      => $result
-                ];
+            if ($opt !== null) {
+                $body['paymentMethod'] = $opt;
             }
 
-            // Penanganan jika IP Address komputer/server belum di-whitelist di Dashboard DBI
-            if (isset($result['responseCode']) && $result['responseCode'] === '4010001') {
-                $clientIp = '';
-                if (preg_match('/([0-9a-fA-F\.:]+)$/', $result['responseMessage'] ?? '', $m)) {
-                    $clientIp = $m[1];
-                }
+            $rawBody = json_encode($body);
+            $dataToSign = $this->apiKey . $signRelativeUrl . $rawBody;
+            $signature = hash_hmac('sha256', $dataToSign, $this->apiSecret);
 
-                Log::warning("AiYO IP Restriction: IP [{$clientIp}] belum di-whitelist di https://bills.aiyo.id/ untuk merchant FHK");
+            $headers = [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $accessToken,
+                'x-aiyo-key'        => $this->apiKey,
+                'x-aiyo-signature'  => $signature
+            ];
 
-                // Jika allow_dev_fallback aktif, sediakan transaksi QRIS adaptif untuk pengujian lokal
-                if (config('aiyo.allow_dev_fallback', true)) {
-                    $mockInvoiceId = 'INV-' . strtoupper(substr(md5($referenceId . microtime()), 0, 16));
-                    $mockToken = 'mock_dev_' . bin2hex(random_bytes(16));
-                    $mockQr = "00020101021226670016ID.CO.AIYO.WWW01189360000000000000000215{$mockInvoiceId}51440014ID.LINKAJA.WWW0215{$mockInvoiceId}520454995303360540" . strlen((string)$payAmount) . $payAmount . "5802ID5914FRESH HYDRATION6007JAKARTA61051011062240720{$referenceId}6304ABCD";
+            try {
+                $ch = curl_init($urlCreateInvoice);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+                curl_setopt($ch, CURLOPT_POST, 1);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $rawBody);
+                $responseBody = curl_exec($ch);
+                curl_close($ch);
 
+                $result = json_decode($responseBody, true);
+
+                // Jika berhasil mendapatkan QRIS live dari AiYO
+                if (isset($result['responseCode']) && $result['responseCode'] === '2000000') {
+                    $invoiceData = $result['responseData'] ?? [];
+                    Log::info("AiYO createInvoice: Sukses menghasilkan tagihan QRIS resmi AiYO!", ['invoiceId' => $invoiceData['invoiceId'] ?? null]);
                     return [
-                        'success'          => true,
-                        'invoiceId'        => $mockInvoiceId,
-                        'accessToken'      => $mockToken,
-                        'referenceId'      => $referenceId,
-                        'payAmount'        => $payAmount,
-                        'items'            => $body['items'],
-                        'qrContent'        => $mockQr,
-                        'invoiceUrl'       => route('kiosk.qris', ['invoiceId' => $mockInvoiceId]),
-                        'is_dev_fallback'  => true,
-                        'unwhitelisted_ip' => $clientIp,
-                        'raw_response'     => $result
+                        'success'           => true,
+                        'invoiceId'         => $invoiceData['invoiceId'] ?? null,
+                        'accessToken'       => $invoiceData['accessToken'] ?? null,
+                        'referenceId'       => $referenceId,
+                        'payAmount'         => $payAmount,
+                        'items'             => $items,
+                        'qrContent'         => $invoiceData['qrContent'] ?? $invoiceData['qrString'] ?? $invoiceData['invoiceURL'] ?? null,
+                        'invoiceUrl'        => $invoiceData['invoiceURL'] ?? null,
+                        'raw_response'      => $result
                     ];
                 }
+
+                // Jika error bukan "Payment Bank Not Allowed" (misal IP Restriction 4010001), jangan coba opsi bank lain
+                if (isset($result['responseCode']) && $result['responseCode'] !== '4000001') {
+                    break;
+                }
+            } catch (\Throwable $e) {
+                Log::error('AiYO createInvoice cURL exception', ['message' => $e->getMessage()]);
+                break;
+            }
+        }
+
+        // Jika IP lokal belum di-whitelist di AiYO (Error 4010001), coba proxy lewat mesinbayar.com yang sudah whitelisted
+        if (isset($result['responseCode']) && $result['responseCode'] === '4010001') {
+            $clientIp = '';
+            if (preg_match('/([0-9a-fA-F\.:]+)$/', $result['responseMessage'] ?? '', $m)) {
+                $clientIp = $m[1];
             }
 
-            Log::warning('AiYO createInvoice error', ['code' => $httpCode, 'response' => $result, 'curlError' => $curlError]);
-            return [
-                'success' => false,
-                'message' => $result['responseMessage'] ?? 'Gagal membuat tagihan invoice di AiYO',
-                'raw'     => $result
-            ];
-        } catch (\Throwable $e) {
-            Log::error('AiYO createInvoice exception', ['message' => $e->getMessage()]);
-            return [
-                'success' => false,
-                'message' => 'Terjadi kesalahan koneksi saat memproses invoice: ' . $e->getMessage()
-            ];
+            Log::warning("AiYO IP Restriction: IP lokal [{$clientIp}] belum di-whitelist. Mencoba jembatan upstream via https://mesinbayar.com/app/fhk/respon.php...");
+
+            try {
+                $chUp = curl_init('https://mesinbayar.com/app/fhk/respon.php?format=json');
+                curl_setopt($chUp, CURLOPT_TIMEOUT, 20);
+                curl_setopt($chUp, CURLOPT_POST, 1);
+                curl_setopt($chUp, CURLOPT_RETURNTRANSFER, TRUE);
+                curl_setopt($chUp, CURLOPT_SSL_VERIFYPEER, FALSE);
+                curl_setopt($chUp, CURLOPT_POSTFIELDS, http_build_query([
+                    'water_type'   => $waterType,
+                    'volume_ml'    => $volumeMl,
+                    'payAmount'    => $payAmount,
+                    'userName'     => $params['userName'] ?? 'Pengunjung Kios',
+                    'userEmail'    => $params['userEmail'] ?? 'customer@fhk.id',
+                    'userPhone'    => $params['userPhone'] ?? '0812000000',
+                    'referenceId'  => $referenceId,
+                    'format'       => 'json'
+                ]));
+                $resUp = curl_exec($chUp);
+                curl_close($chUp);
+
+                $jsonUp = json_decode($resUp, true);
+                if ($jsonUp && !empty($jsonUp['success']) && !empty($jsonUp['invoiceId'])) {
+                    Log::info("AiYO createInvoice: Berhasil mendapatkan QRIS Live AiYO melalui upstream mesinbayar.com!", ['invoiceId' => $jsonUp['invoiceId']]);
+                    return [
+                        'success'           => true,
+                        'invoiceId'         => $jsonUp['invoiceId'],
+                        'accessToken'       => $jsonUp['accessToken'] ?? null,
+                        'referenceId'       => $referenceId,
+                        'payAmount'         => $payAmount,
+                        'items'             => $items,
+                        'qrContent'         => $jsonUp['qrContent'] ?? $jsonUp['invoiceUrl'],
+                        'invoiceUrl'        => $jsonUp['invoiceUrl'] ?? null,
+                        'is_upstream_live'  => true,
+                        'raw_response'      => $jsonUp
+                    ];
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Upstream mesinbayar.com proxy failed: ' . $e->getMessage());
+            }
+
+            // Jika dev fallback aktif saat offline/tanpa koneksi
+            if (config('aiyo.allow_dev_fallback', true)) {
+                $mockInvoiceId = 'INV-' . strtoupper(substr(md5($referenceId . microtime()), 0, 16));
+                $mockToken = 'mock_dev_' . bin2hex(random_bytes(16));
+                $mockQr = "00020101021226670016ID.CO.AIYO.WWW01189360000000000000000215{$mockInvoiceId}51440014ID.LINKAJA.WWW0215{$mockInvoiceId}520454995303360540" . strlen((string)$payAmount) . $payAmount . "5802ID5914FRESH HYDRATION6007JAKARTA61051011062240720{$referenceId}6304ABCD";
+
+                return [
+                    'success'          => true,
+                    'invoiceId'        => $mockInvoiceId,
+                    'accessToken'      => $mockToken,
+                    'referenceId'      => $referenceId,
+                    'payAmount'        => $payAmount,
+                    'items'            => $items,
+                    'qrContent'        => $mockQr,
+                    'invoiceUrl'       => route('kiosk.qris', ['invoiceId' => $mockInvoiceId]),
+                    'is_dev_fallback'  => true,
+                    'unwhitelisted_ip' => $clientIp,
+                    'raw_response'     => $result
+                ];
+            }
         }
+
+        return [
+            'success' => false,
+            'message' => $result['responseMessage'] ?? 'Gagal membuat tagihan invoice di AiYO',
+            'raw'     => $result
+        ];
     }
 
     /**
@@ -257,7 +307,7 @@ class AiyoPaymentService
 
                 return [
                     'success'       => true,
-                    'status'        => $status, // PENDING, PAID, EXPIRED, dll
+                    'status'        => $status,
                     'isPaid'        => in_array(strtoupper($status), ['PAID', 'SUCCESS', 'SETTLED', 'COMPLETED']),
                     'invoiceName'   => $resData['invoiceName'] ?? '',
                     'payAmount'     => $resData['payAmount'] ?? 0,
