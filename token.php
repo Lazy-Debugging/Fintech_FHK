@@ -12,7 +12,7 @@ $chGetToken = curl_init($urlGetToken);
 curl_setopt($chGetToken, CURLOPT_RETURNTRANSFER, TRUE);
 curl_setopt($chGetToken, CURLOPT_ENCODING, '');
 curl_setopt($chGetToken, CURLOPT_MAXREDIRS, 10);
-curl_setopt($chGetToken, CURLOPT_TIMEOUT, 30);
+curl_setopt($chGetToken, CURLOPT_TIMEOUT, 10);
 curl_setopt($chGetToken, CURLOPT_SSL_VERIFYPEER, FALSE);
 curl_setopt($chGetToken, CURLOPT_SSL_VERIFYHOST, 0);
 curl_setopt($chGetToken, CURLOPT_FOLLOWLOCATION, TRUE);
