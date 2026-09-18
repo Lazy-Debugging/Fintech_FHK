@@ -25,6 +25,8 @@ $URLCekStatus = $host . $pathInvoice . "/" . $invoiceId . "?accessToken=" . urle
 $chCekInvoice = curl_init($URLCekStatus);
 curl_setopt($chCekInvoice, CURLOPT_TIMEOUT, 30);
 curl_setopt($chCekInvoice, CURLOPT_RETURNTRANSFER, TRUE);
+curl_setopt($chCekInvoice, CURLOPT_SSL_VERIFYPEER, FALSE);
+curl_setopt($chCekInvoice, CURLOPT_SSL_VERIFYHOST, 0);
 curl_setopt($chCekInvoice, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 $responseCekInvoice = curl_exec($chCekInvoice);
 curl_close($chCekInvoice);

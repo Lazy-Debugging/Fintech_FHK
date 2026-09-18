@@ -184,9 +184,13 @@ if ($isJson) {
     exit;
 }
 
-// 6. Output HTML Biasa Sesuai Slide 25 & 26 (atau redirect langsung jika diminta oleh Kios)
+// 6. Output HTML Biasa Sesuai Slide 25 & 26 (atau redirect langsung jika dipanggil dari Kios)
 if (!empty($invoiceId) && !empty($invoiceAccessToken)) {
-    if (!empty($invoiceURL) && !empty($_REQUEST['redirect'])) {
+    if (empty($invoiceURL)) {
+        $invoiceURL = "https://bills-invoice.aiyo.id/bills/invoice/{$invoiceId}?accessToken=" . urlencode($invoiceAccessToken);
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' || !empty($_REQUEST['redirect'])) {
         header("Location: " . $invoiceURL);
         exit;
     }

@@ -13,6 +13,8 @@ curl_setopt($chGetToken, CURLOPT_RETURNTRANSFER, TRUE);
 curl_setopt($chGetToken, CURLOPT_ENCODING, '');
 curl_setopt($chGetToken, CURLOPT_MAXREDIRS, 10);
 curl_setopt($chGetToken, CURLOPT_TIMEOUT, 30);
+curl_setopt($chGetToken, CURLOPT_SSL_VERIFYPEER, FALSE);
+curl_setopt($chGetToken, CURLOPT_SSL_VERIFYHOST, 0);
 curl_setopt($chGetToken, CURLOPT_FOLLOWLOCATION, TRUE);
 curl_setopt($chGetToken, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 curl_setopt($chGetToken, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
