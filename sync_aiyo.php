@@ -8,11 +8,18 @@ $repoRawBase = "https://raw.githubusercontent.com/Lazy-Debugging/Fintech_FHK/mai
 
 $filesToSync = [
     "respon.php",
+    "token.php",
+    "cek.php",
+    "db_config.php",
+    "public/sw.js",
+    "routes/web.php",
     "resources/views/kiosk/index.blade.php",
     "resources/views/kiosk/qris_payment.blade.php",
+    "resources/views/layouts/kiosk_layout.blade.php",
     "app/Http/Controllers/Kiosk/OrderController.php",
     "app/Http/Controllers/Kiosk/KioskScreenController.php",
-    "routes/web.php"
+    "app/Http/Middleware/VerifyCsrfToken.php",
+    "app/Services/AiyoPaymentService.php"
 ];
 
 $results = [];
