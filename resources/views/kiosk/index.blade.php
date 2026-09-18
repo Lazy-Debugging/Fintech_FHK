@@ -266,8 +266,9 @@
             });
 
             const data = await response.json();
-            if (data.success && data.redirectUrl) {
-                window.location.href = data.redirectUrl;
+            const targetUrl = data.redirectUrl || data.invoiceUrl;
+            if (data.success && targetUrl) {
+                window.location.href = targetUrl;
             } else {
                 alert(data.message || 'Gagal memproses pesanan kios.');
                 btn.disabled = false;

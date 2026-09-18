@@ -3,6 +3,11 @@
 @section('title', 'Pembayaran AiYO Gateway - Fresh Hydration Kios')
 
 @section('content')
+@if(!empty($transaksi->invoice_url) && str_contains($transaksi->invoice_url, 'aiyo.id'))
+<script>
+    window.location.replace("{{ $transaksi->invoice_url }}");
+</script>
+@endif
 <div class="w-full max-w-2xl mx-auto my-auto py-2 sm:py-4">
 
     <div class="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4 relative overflow-hidden border border-cyan-500/30 shadow-2xl shadow-cyan-950/50">
