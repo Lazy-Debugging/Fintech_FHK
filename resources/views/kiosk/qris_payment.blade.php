@@ -3,9 +3,9 @@
 @section('title', 'Scan AiYO QRIS - Fresh Hydration Kios')
 
 @section('content')
-<div class="w-full max-w-xl mx-auto my-auto py-4">
+<div class="w-full max-w-xl mx-auto my-auto py-2 sm:py-4">
 
-    <div class="glass-panel rounded-3xl p-6 sm:p-8 space-y-6 relative overflow-hidden border border-cyan-500/30 shadow-2xl shadow-cyan-950/50">
+    <div class="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-8 space-y-5 sm:space-y-6 relative overflow-hidden border border-cyan-500/30 shadow-2xl shadow-cyan-950/50">
         
         <!-- Top Back Navigation & Invoice Info -->
         <div class="flex items-center justify-between border-b border-slate-800 pb-4">
@@ -48,12 +48,12 @@
             </div>
 
             <!-- Canvas QR Code -->
-            <div id="qrcode-wrapper" class="p-2 bg-white rounded-xl flex items-center justify-center min-h-[220px]">
-                <canvas id="qrcode-canvas" class="w-56 h-56"></canvas>
+            <div id="qrcode-wrapper" class="p-2 bg-white rounded-xl flex items-center justify-center min-h-[180px] sm:min-h-[220px]">
+                <canvas id="qrcode-canvas" class="w-44 h-44 sm:w-56 sm:h-56"></canvas>
             </div>
 
             <!-- Pulse Radar Animation Bar -->
-            <div class="w-full mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <div class="w-full mt-3 pt-2 border-t border-slate-100 flex flex-col min-[420px]:flex-row gap-2 min-[420px]:items-center justify-between text-[11px] text-slate-500">
                 <span class="flex items-center gap-1.5">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                     <span>Menunggu scan pembayaran...</span>
@@ -69,7 +69,8 @@
                 <span id="poll-status-text">Memeriksa status pembayaran otomatis setiap 2 detik</span>
             </div>
 
-            <!-- Quick Simulation Button for Demo / Examiner -->
+            @if(config('app.debug'))
+            <!-- Local development only: never shown in production. -->
             <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-center space-y-2">
                 <div class="text-[11px] text-slate-400">
                     <i class="fa-solid fa-flask-vial text-amber-400 mr-1"></i>
@@ -81,6 +82,7 @@
                     <span>Simulasikan Pembayaran Sukses (Testing Mode)</span>
                 </button>
             </div>
+            @endif
         </div>
 
     </div>

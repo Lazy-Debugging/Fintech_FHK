@@ -1,7 +1,7 @@
 {
   "name": "Fresh Hydration Kios (FHK)",
   "short_name": "FHK Kiosk",
-  "start_url": "/",
+  "start_url": "/kiosk?kiosk_id=FHK-JAKARTA-01",
   "display": "standalone",
   "background_color": "#0a0f1d",
   "theme_color": "#06b6d4",

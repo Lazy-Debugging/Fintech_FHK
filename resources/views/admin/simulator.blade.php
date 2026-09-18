@@ -3,12 +3,12 @@
 @section('title', 'ESP32 Microcontroller Simulator & Firmware - FHK')
 
 @section('content')
-<div class="space-y-8">
+<div class="space-y-5 sm:space-y-8">
 
     <!-- Header -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-            <h2 class="text-2xl font-black text-white tracking-tight flex items-center gap-3">
+            <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight flex items-start sm:items-center gap-3">
                 <i class="fa-solid fa-microchip text-purple-400"></i>
                 <span>ESP32 Hardware IoT Simulator & Firmware</span>
             </h2>
@@ -28,7 +28,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <!-- Left: Virtual ESP32 Hardware Board -->
-        <div class="admin-card rounded-2xl p-6 space-y-6">
+        <div class="admin-card rounded-2xl p-4 sm:p-6 space-y-6">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 class="font-extrabold text-white text-sm flex items-center gap-2">
                     <i class="fa-solid fa-server text-cyan-400"></i>
@@ -111,7 +111,7 @@
         </div>
 
         <!-- Middle: Ultrasonic Water Level Telemetry Simulator -->
-        <div class="admin-card rounded-2xl p-6 space-y-6">
+        <div class="admin-card rounded-2xl p-4 sm:p-6 space-y-6">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 class="font-extrabold text-white text-sm flex items-center gap-2">
                     <i class="fa-solid fa-wave-square text-cyan-400"></i>
@@ -163,7 +163,7 @@
         </div>
 
         <!-- Right: Arduino / ESP32 C++ Code Reference -->
-        <div class="admin-card rounded-2xl p-6 space-y-4 flex flex-col justify-between">
+        <div class="admin-card rounded-2xl p-4 sm:p-6 space-y-4 flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between border-b border-slate-800 pb-3">
                     <h3 class="font-extrabold text-white text-sm flex items-center gap-2">

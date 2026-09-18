@@ -1,0 +1,4 @@
+@extends('layouts.kiosk_layout')
+@section('title','Scan di Kiosk - FHK')
+@section('content')<div class="w-full max-w-md mx-auto text-center glass-panel rounded-2xl p-6 space-y-5"><h2 class="text-2xl font-black">Pembayaran Berhasil</h2><p class="text-slate-400 text-sm">Scan QR ini pada kiosk {{ $transaction->kiosk->name }} untuk mulai pengisian air.</p><div class="bg-white p-4 rounded-xl inline-block"><canvas id="pickup-qr" class="w-64 h-64 max-w-full"></canvas></div><p class="text-xs text-amber-300">QR berlaku sampai {{ $transaction->redemption_expires_at->format('H:i') }} dan hanya dapat digunakan satu kali.</p></div>@endsection
+@section('scripts')<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script><script>new QRious({element:document.getElementById('pickup-qr'),value:@json($redemptionToken),size:320,level:'H'});</script>@endsection

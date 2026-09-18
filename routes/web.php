@@ -1,7 +1,12 @@
 <?php
 
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\VoucherController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Kiosk\KioskScreenController;
+use App\Http\Controllers\MobileOrderController;
+use App\Http\Controllers\Payment\AiyoCallbackController;
+use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -10,16 +15,90 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
+// Dashboard kios adalah halaman paling awal; login/tamu hanya opsi tambahan.
+Route::get('/', [KioskScreenController::class, 'index'])->name('home');
+
+// Dashboard monitoring publik (read-only, tanpa gerbang login).
+Route::get('/dashboard', function () {
+    return view('welcome');
+})->name('public.dashboard');
+
+Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
+
+Route::get('/login', [AuthController::class, 'showLogin'])->middleware('guest')->name('login');
+Route::get('/admin/login', [AuthController::class, 'showAdminLogin'])->middleware('guest')->name('admin.login');
+Route::post('/login/admin', [AuthController::class, 'adminLogin'])->name('login.admin');
+Route::post('/continue-as-guest', [AuthController::class, 'guest'])->name('login.guest');
+Route::get('/auth/google', [AuthController::class, 'redirectToGoogle'])->name('google.redirect');
+Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback'])->name('google.callback');
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::get('/orders/{invoiceId}/collect', [MobileOrderController::class, 'collect'])->name('orders.collect');
+
+// PWA resources are routed so they work behind a subdirectory front controller.
+Route::get('/manifest.webmanifest', function () {
+    return response()->json([
+        'name' => 'Fresh Hydration Kios (FHK)',
+        'short_name' => 'FHK Kiosk',
+        'id' => './kiosk',
+        'start_url' => './kiosk?kiosk_id=FHK-JAKARTA-01',
+        'scope' => './',
+        'display' => 'standalone',
+        'background_color' => '#0a0f1d',
+        'theme_color' => '#06b6d4',
+        'orientation' => 'any',
+        'description' => 'Dispenser air minum otomatis dengan pembayaran QRIS AiYO.',
+        'icons' => [
+            ['src' => 'icons/icon-192.svg', 'sizes' => '192x192', 'type' => 'image/svg+xml', 'purpose' => 'any'],
+            ['src' => 'icons/icon-512.svg', 'sizes' => '512x512', 'type' => 'image/svg+xml', 'purpose' => 'any maskable'],
+        ],
+    ])->header('Content-Type', 'application/manifest+json');
+})->name('pwa.manifest');
+
+Route::get('/sw.js', function () {
+    return response()->file(public_path('sw.js'), [
+        'Content-Type' => 'application/javascript; charset=UTF-8',
+        'Cache-Control' => 'no-cache',
+        'Service-Worker-Allowed' => request()->getBaseUrl().'/',
+    ]);
+})->name('pwa.service_worker');
+
+Route::get('/offline', function () {
+    return response()->view('pwa.offline');
+})->name('pwa.offline');
+
+Route::get('/icons/{icon}', function (string $icon) {
+    abort_unless(in_array($icon, ['icon-192.svg', 'icon-512.svg'], true), 404);
+
+    return response()->file(public_path('icons/'.$icon), [
+        'Content-Type' => 'image/svg+xml',
+        'Cache-Control' => 'public, max-age=604800',
+    ]);
+})->where('icon', '[A-Za-z0-9.-]+')->name('pwa.icon');
+
 // Layar Frontend Kios PWA
-Route::get('/', [KioskScreenController::class, 'index'])->name('kiosk.home');
+Route::get('/kiosk', [KioskScreenController::class, 'index'])->name('kiosk.home');
+// URL compatibility for the dashboard/external AiYO entry point.
+Route::get('/app/fhk/kiosk', [KioskScreenController::class, 'index'])->name('kiosk.external');
 Route::get('/kiosk/qris/{invoiceId}', [KioskScreenController::class, 'qris'])->name('kiosk.qris');
 Route::get('/kiosk/dispensing/{invoiceId}', [KioskScreenController::class, 'dispensing'])->name('kiosk.dispensing');
 Route::get('/kiosk/receipt/{invoiceId}', [KioskScreenController::class, 'receipt'])->name('kiosk.receipt');
 
-// Admin & Maintenance Monitoring Dashboard
-Route::prefix('admin')->group(function () {
-    Route::get('/', [DashboardController::class, 'index'])->name('admin.dashboard');
-    Route::post('/trigger-uv/{kioskId}', [DashboardController::class, 'triggerUvSterilization'])->name('admin.trigger_uv');
-    Route::post('/reset-filter/{filterId}', [DashboardController::class, 'resetFilter'])->name('admin.reset_filter');
-    Route::get('/simulator', [DashboardController::class, 'simulator'])->name('admin.simulator');
+// AiYO Bills Invoice Gateway Callback Webhook (Target: https://mesinbayar.com/app/fhk/callback/)
+Route::match(['get', 'post'], '/app/fhk/callback', [AiyoCallbackController::class, 'handleCallback'])->name('aiyo.callback');
+Route::match(['get', 'post'], '/app/fhk/callback/', [AiyoCallbackController::class, 'handleCallback']);
+Route::match(['get', 'post'], '/callback', [AiyoCallbackController::class, 'handleCallback']);
+Route::match(['get', 'post'], '/callback/', [AiyoCallbackController::class, 'handleCallback']);
+Route::match(['get', 'post'], '/callback.php', [AiyoCallbackController::class, 'handleCallback']);
+
+
+// Area administrasi terpisah dari dashboard publik.
+Route::prefix('admin')->as('admin.')->middleware(['auth', 'admin'])->group(function () {
+    Route::redirect('/', '/admin/dashboard')->name('home');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::post('/trigger-uv/{kioskId}', [DashboardController::class, 'triggerUvSterilization'])->name('trigger_uv');
+    Route::post('/reset-filter/{filterId}', [DashboardController::class, 'resetFilter'])->name('reset_filter');
+    Route::get('/simulator', [DashboardController::class, 'simulator'])->name('simulator');
+    Route::get('/vouchers', [VoucherController::class, 'index'])->name('vouchers.index');
+    Route::post('/vouchers', [VoucherController::class, 'store'])->name('vouchers.store');
+    Route::patch('/vouchers/{voucher}', [VoucherController::class, 'update'])->name('vouchers.update');
 });

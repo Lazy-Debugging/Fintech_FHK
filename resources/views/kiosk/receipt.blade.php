@@ -3,10 +3,10 @@
 @section('title', 'Struk Digital Pembayaran - Fresh Hydration Kios')
 
 @section('content')
-<div class="w-full max-w-lg mx-auto my-auto py-4">
+<div class="w-full max-w-lg mx-auto my-auto py-2 sm:py-4">
 
     <!-- Digital Receipt Card -->
-    <div class="glass-panel rounded-3xl p-6 sm:p-8 space-y-6 relative overflow-hidden border border-emerald-500/30 shadow-2xl shadow-emerald-950/40">
+    <div class="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-8 space-y-5 sm:space-y-6 relative overflow-hidden border border-emerald-500/30 shadow-2xl shadow-emerald-950/40">
         
         <!-- Header Success Icon -->
         <div class="text-center space-y-2">
@@ -24,7 +24,7 @@
         <!-- Receipt Body Details Box -->
         <div class="rounded-2xl bg-slate-900/90 border border-slate-800 p-5 space-y-4 font-mono text-xs">
             
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div class="flex flex-col min-[420px]:flex-row min-[420px]:items-center justify-between gap-2 border-b border-slate-800 pb-3">
                 <span class="text-slate-400">Status Transaksi:</span>
                 <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
                     LUNAS • COMPLETED
@@ -32,26 +32,26 @@
             </div>
 
             <div class="space-y-2 text-slate-300">
-                <div class="flex justify-between">
+                <div class="flex flex-col min-[420px]:flex-row min-[420px]:justify-between gap-1">
                     <span class="text-slate-500">ID Referensi:</span>
                     <span class="font-bold text-white">{{ $transaksi->referenceId }}</span>
                 </div>
-                <div class="flex justify-between">
+                <div class="flex flex-col min-[420px]:flex-row min-[420px]:justify-between gap-1">
                     <span class="text-slate-500">Nomor Invoice AiYO:</span>
                     <span class="text-slate-400">{{ substr($transaksi->invoiceId, 0, 16) }}...</span>
                 </div>
-                <div class="flex justify-between">
+                <div class="flex flex-col min-[420px]:flex-row min-[420px]:justify-between gap-1">
                     <span class="text-slate-500">Waktu Pembayaran:</span>
                     <span>{{ $transaksi->created_at->format('d M Y, H:i:s') }} WIB</span>
                 </div>
-                <div class="flex justify-between">
+                <div class="flex flex-col min-[420px]:flex-row min-[420px]:justify-between gap-1">
                     <span class="text-slate-500">Lokasi Kios:</span>
                     <span>{{ $transaksi->kiosk->name ?? 'FHK Stasiun Gambir' }}</span>
                 </div>
             </div>
 
             <div class="border-t border-dashed border-slate-800 pt-3 space-y-2">
-                <div class="flex justify-between items-center text-sm font-sans">
+                <div class="flex flex-col min-[420px]:flex-row min-[420px]:justify-between min-[420px]:items-center gap-1 text-sm font-sans">
                     <span class="font-bold text-white">Air Minum {{ $transaksi->water_type }} ({{ $transaksi->volume_ml }} ml)</span>
                     <span class="font-black text-cyan-400">Rp {{ number_format($transaksi->payAmount, 0, ',', '.') }}</span>
                 </div>
@@ -61,7 +61,7 @@
                 </div>
             </div>
 
-            <div class="border-t border-slate-800 pt-3 flex justify-between items-center">
+            <div class="border-t border-slate-800 pt-3 flex flex-col min-[420px]:flex-row min-[420px]:justify-between min-[420px]:items-center gap-1">
                 <span class="text-slate-400 font-sans font-bold">Total Pembayaran (AiYO QRIS):</span>
                 <span class="text-base font-black text-white font-sans">
                     Rp {{ number_format($transaksi->payAmount, 0, ',', '.') }}
@@ -71,7 +71,7 @@
         </div>
 
         <!-- QR Code to Save Receipt to Mobile Smartphone -->
-        <div class="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex items-center gap-4">
+        <div class="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex flex-col min-[420px]:flex-row items-center gap-4">
             <div class="p-2 bg-white rounded-xl shrink-0">
                 <canvas id="receipt-qr" class="w-20 h-20"></canvas>
             </div>

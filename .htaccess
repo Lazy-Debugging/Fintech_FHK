@@ -1,0 +1,42 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    RewriteCond %{HTTP:x-xsrf-token} .
+    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+
+    # Never expose Laravel source code, configuration, dependencies, or runtime files.
+    RewriteRule ^(?:app|bootstrap|config|database|resources|routes|storage|tests|vendor)(?:/|$) - [F,L,NC]
+    RewriteRule ^(?:\.env|artisan|composer\.(?:json|lock)|package(?:-lock)?\.json|phpunit\.xml)$ - [F,L,NC]
+
+    # Serve public assets without requiring /public in the URL.
+    RewriteCond %{DOCUMENT_ROOT}/fhk/public/$1 -f [OR]
+    RewriteCond %{DOCUMENT_ROOT}/fhk/public/$1 -d
+    RewriteRule ^(.+)$ public/$1 [L]
+
+    # Send every application route through the Laravel front controller.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Never expose Laravel source, configuration, dependencies, or runtime data.
+    RewriteRule ^(?:app|bootstrap|config|database|resources|routes|storage|tests|vendor)(?:/|$) - [F,L,NC]
+    RewriteRule ^(?:artisan|composer\.(?:json|lock)|package\.json|phpunit\.xml|vite\.config\.js|\.env.*)$ - [F,L,NC]
+
+    # Serve the small set of public PWA assets from Laravel's public directory.
+    RewriteRule ^(favicon\.ico|manifest\.json|robots\.txt|sw\.js)$ public/$1 [L]
+
+    # Send all application URLs through the fallback entry point above.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>

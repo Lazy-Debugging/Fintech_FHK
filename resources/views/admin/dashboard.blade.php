@@ -3,13 +3,13 @@
 @section('title', 'Monitoring & Maintenance - Fresh Hydration Kios')
 
 @section('content')
-<div class="space-y-8">
+<div class="space-y-5 sm:space-y-8">
 
     <!-- Top Action Bar & Kiosk Status Header -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-            <div class="flex items-center gap-3">
-                <h2 class="text-2xl font-black text-white tracking-tight">{{ $selectedKiosk->name ?? 'FHK Kios' }}</h2>
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">{{ $selectedKiosk->name ?? 'FHK Kios' }}</h2>
                 <span class="px-3 py-1 rounded-full text-xs font-bold {{ $selectedKiosk->status === 'ONLINE' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : ($selectedKiosk->status === 'DISPENSING' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30') }}">
                     <i class="fa-solid fa-circle text-[8px] mr-1"></i> {{ $selectedKiosk->status }}
                 </span>
@@ -19,12 +19,12 @@
             </p>
         </div>
 
-        <div class="flex items-center gap-3">
-            <button onclick="triggerEmergencyUv()" class="px-4 py-2.5 rounded-xl bg-purple-900/50 hover:bg-purple-800/60 text-purple-200 border border-purple-700/60 text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-purple-950/40">
+        <div class="grid w-full sm:w-auto grid-cols-1 sm:flex items-stretch gap-2 sm:gap-3">
+            <button onclick="triggerEmergencyUv()" class="px-4 py-2.5 rounded-xl bg-purple-900/50 hover:bg-purple-800/60 text-purple-200 border border-purple-700/60 text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-purple-950/40">
                 <i class="fa-solid fa-shield-virus text-purple-400"></i>
                 <span>Jalankan Sterilisasi UV Sekarang</span>
             </button>
-            <a href="{{ route('admin.simulator') }}" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-2 border border-slate-700">
+            <a href="{{ route('admin.simulator') }}" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center justify-center gap-2 border border-slate-700">
                 <i class="fa-solid fa-microchip text-cyan-400"></i>
                 <span>Simulator ESP32</span>
             </a>
@@ -32,16 +32,16 @@
     </div>
 
     <!-- KPI Metric Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
-        <div class="admin-card rounded-2xl p-5 space-y-2">
+        <div class="admin-card rounded-2xl p-4 sm:p-5 space-y-2">
             <div class="flex items-center justify-between text-xs text-slate-400">
                 <span>Total Pendapatan (AiYO)</span>
                 <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                     <i class="fa-solid fa-rupiah-sign"></i>
                 </div>
             </div>
-            <div class="text-2xl font-black text-white">
+            <div class="text-xl sm:text-2xl font-black text-white break-words">
                 Rp {{ number_format($totalRevenue, 0, ',', '.') }}
             </div>
             <div class="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
@@ -49,14 +49,14 @@
             </div>
         </div>
 
-        <div class="admin-card rounded-2xl p-5 space-y-2">
+        <div class="admin-card rounded-2xl p-4 sm:p-5 space-y-2">
             <div class="flex items-center justify-between text-xs text-slate-400">
                 <span>Air Dikeluarkan</span>
                 <div class="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
                     <i class="fa-solid fa-bottle-water"></i>
                 </div>
             </div>
-            <div class="text-2xl font-black text-white">
+            <div class="text-xl sm:text-2xl font-black text-white break-words">
                 {{ number_format($totalLitersDispensed, 1, ',', '.') }} <span class="text-base text-slate-400 font-normal">Liter</span>
             </div>
             <div class="text-[11px] text-cyan-400 font-medium">
@@ -64,14 +64,14 @@
             </div>
         </div>
 
-        <div class="admin-card rounded-2xl p-5 space-y-2">
+        <div class="admin-card rounded-2xl p-4 sm:p-5 space-y-2">
             <div class="flex items-center justify-between text-xs text-slate-400">
                 <span>Suhu Air Dingin</span>
                 <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center">
                     <i class="fa-solid fa-temperature-arrow-down"></i>
                 </div>
             </div>
-            <div class="text-2xl font-black text-white">
+            <div class="text-xl sm:text-2xl font-black text-white">
                 {{ $selectedKiosk->current_temp_celsius ?? 7.5 }}°C
             </div>
             <div class="text-[11px] text-sky-400 font-medium">
@@ -79,14 +79,14 @@
             </div>
         </div>
 
-        <div class="admin-card rounded-2xl p-5 space-y-2">
+        <div class="admin-card rounded-2xl p-4 sm:p-5 space-y-2">
             <div class="flex items-center justify-between text-xs text-slate-400">
                 <span>Lampu UV-C ESP32</span>
                 <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
                     <i class="fa-solid fa-radiation"></i>
                 </div>
             </div>
-            <div class="text-2xl font-black text-white">
+            <div class="text-xl sm:text-2xl font-black text-white">
                 Aktif (99.9%)
             </div>
             <div class="text-[11px] text-purple-400 font-medium">
@@ -100,7 +100,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <!-- 1. Tangki Air (Ultrasonic Fluid Level Sensor) -->
-        <div class="admin-card rounded-2xl p-6 space-y-6 flex flex-col justify-between">
+        <div class="admin-card rounded-2xl p-4 sm:p-6 space-y-6 flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between">
                     <h3 class="font-extrabold text-white text-base flex items-center gap-2">
@@ -148,8 +148,8 @@
         </div>
 
         <!-- 2. Kondisi Filter & Lampu UV Maintenance -->
-        <div class="lg:col-span-2 admin-card rounded-2xl p-6 space-y-6">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div class="lg:col-span-2 admin-card rounded-2xl p-4 sm:p-6 space-y-6">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800 pb-4">
                 <div>
                     <h3 class="font-extrabold text-white text-base flex items-center gap-2">
                         <i class="fa-solid fa-filter text-purple-400"></i>
@@ -169,8 +169,8 @@
                     $color = $pct > 50 ? 'emerald' : ($pct > 20 ? 'amber' : 'red');
                 @endphp
                 <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
                             <div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-{{ $color }}-400 text-lg border border-slate-700">
                                 @if($filter->filter_type === 'UV_LAMP')
                                     <i class="fa-solid fa-radiation"></i>
@@ -186,7 +186,7 @@
                             </div>
                         </div>
 
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center justify-between sm:justify-end gap-3">
                             <span class="text-sm font-black font-mono text-{{ $color }}-400">
                                 {{ $pct }}% Tersisa
                             </span>
@@ -216,7 +216,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <!-- Jadwal Sterilisasi UV Otomatis -->
-        <div class="admin-card rounded-2xl p-6 space-y-4">
+        <div class="admin-card rounded-2xl p-4 sm:p-6 space-y-4">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 class="font-bold text-white text-sm flex items-center gap-2">
                     <i class="fa-solid fa-clock-rotate-left text-purple-400"></i>
@@ -251,8 +251,8 @@
         </div>
 
         <!-- Tabel Transaksi Terbaru (AiYO QRIS) -->
-        <div class="lg:col-span-2 admin-card rounded-2xl p-6 space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="lg:col-span-2 admin-card rounded-2xl p-4 sm:p-6 space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800 pb-3">
                 <h3 class="font-bold text-white text-sm flex items-center gap-2">
                     <i class="fa-solid fa-receipt text-cyan-400"></i>
                     <span>Riwayat Transaksi AiYO QRIS Terbaru</span>
@@ -260,8 +260,8 @@
                 <span class="text-xs text-slate-400">10 Transaksi Terakhir</span>
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs">
+            <div class="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                <table class="w-full min-w-[620px] text-left text-xs">
                     <thead>
                         <tr class="border-b border-slate-800 text-slate-400">
                             <th class="pb-3 font-semibold">Ref ID</th>

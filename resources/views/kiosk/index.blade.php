@@ -3,14 +3,14 @@
 @section('title', 'Pilih Jenis Air & Volume - Fresh Hydration Kios')
 
 @section('content')
-<div class="w-full max-w-4xl mx-auto space-y-8 my-auto py-2">
+<div class="w-full max-w-4xl mx-auto space-y-5 sm:space-y-8 my-auto py-2">
 
     <!-- Hero Title -->
     <div class="text-center space-y-2">
         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-800 text-cyan-300 text-xs font-semibold uppercase tracking-wider">
             <i class="fa-solid fa-sparkles"></i> 100% UV-C Sterilized & Mineral Enriched
         </span>
-        <h2 class="text-3xl sm:text-4xl font-black tracking-tight text-white">
+        <h2 class="text-2xl sm:text-4xl font-black tracking-tight text-white">
             Sentuh & Pilih Hidrasi Higienis Anda
         </h2>
         <p class="text-sm text-slate-400 max-w-lg mx-auto">
@@ -19,7 +19,7 @@
     </div>
 
     <!-- Main Selection Form Container -->
-    <div class="glass-panel rounded-3xl p-6 sm:p-8 space-y-8 relative overflow-hidden">
+    <div class="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-8 space-y-6 sm:space-y-8 relative overflow-hidden">
         <div class="absolute -top-24 -right-24 w-60 h-60 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div class="absolute -bottom-24 -left-24 w-60 h-60 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -74,13 +74,20 @@
             </div>
         </div>
 
+        @auth
+        <div class="space-y-2">
+            <label for="voucher-code" class="text-xs font-bold uppercase tracking-wider text-slate-400">Kode Voucher</label>
+            <input id="voucher-code" type="text" maxlength="40" placeholder="Masukkan kode voucher" class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white uppercase outline-none focus:border-cyan-400">
+        </div>
+        @endauth
+
         <!-- 2. Pilihan Volume Air (Volume Option) -->
         <div class="space-y-3">
             <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
                 <span class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs">2</span>
                 Pilih Ukuran Volume
             </label>
-            <div class="grid grid-cols-3 gap-3 sm:gap-4">
+            <div class="grid grid-cols-1 min-[420px]:grid-cols-3 gap-3 sm:gap-4">
                 
                 <!-- 250 ml -->
                 <div onclick="selectVolume(250)" id="vol-250"
@@ -116,8 +123,8 @@
         </div>
 
         <!-- 3. Ringkasan & Tombol Aksi Pembayaran -->
-        <div class="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div>
+        <div class="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div class="w-full sm:w-auto">
                 <div class="text-xs text-slate-400">Total Pembayaran AiYO QRIS:</div>
                 <div class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-sky-200" id="display-total-price">
                     Rp 3.500
@@ -235,6 +242,19 @@
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i> <span>Membuat AiYO QRIS...</span>';
 
+        const orderPayload = {
+            kiosk_id: kioskId,
+            water_type: selectedTemp,
+            volume_ml: selectedVol,
+            user_name: @json(auth()->user()?->name ?? 'Pengunjung Kios FHK'),
+            user_email: @json(auth()->user()?->email ?? 'customer@fhk.id'),
+            user_phone: '0812000000'
+        };
+
+        @auth
+        orderPayload.voucher_code = document.getElementById('voucher-code').value.trim();
+        @endauth
+
         try {
             const response = await fetch("{{ route('api.kiosk.order') }}", {
                 method: 'POST',
@@ -242,14 +262,7 @@
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                 },
-                body: JSON.stringify({
-                    kiosk_id: kioskId,
-                    water_type: selectedTemp,
-                    volume_ml: selectedVol,
-                    user_name: 'Pengunjung Kios FHK',
-                    user_email: 'customer@fhk.id',
-                    user_phone: '0812000000'
-                })
+                body: JSON.stringify(orderPayload)
             });
 
             const data = await response.json();

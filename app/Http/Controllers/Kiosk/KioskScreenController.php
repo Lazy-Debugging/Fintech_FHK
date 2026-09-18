@@ -14,6 +14,10 @@ class KioskScreenController extends Controller
      */
     public function index(Request $request)
     {
+        if (! $request->user() && ! $request->session()->has('guest_order_id')) {
+            $request->session()->put('guest_order_id', bin2hex(random_bytes(16)));
+        }
+
         $kioskId = $request->query('kiosk_id', config('aiyo.default_kiosk_id', 'FHK-JAKARTA-01'));
         $kiosk = Kiosk::firstOrCreate(
             ['id' => $kioskId],

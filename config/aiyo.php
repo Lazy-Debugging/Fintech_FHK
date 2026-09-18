@@ -7,7 +7,11 @@ return [
     'bill_master_id' => env('AIYO_BILL_MASTER_ID', 'uxGSWGOqpeqLaG5Qn1DH'),
     'api_key' => env('AIYO_API_KEY', 'key_SxcKMQ8cMbckjRMLvNCy1hNqUMGSo4'),
     'api_secret' => env('AIYO_API_SECRET', 'secret_WU3Ba45FwWE9sDe4uxUarvM4P6KMB4'),
+    'callback_url' => env('AIYO_CALLBACK_URL', 'https://mesinbayar.com/app/fhk/callback/'),
+    'qris_bank_code' => env('AIYO_QRIS_BANK_CODE', '503'),
     'timezone' => env('AIYO_TIMEZONE', 'Asia/Jakarta'),
     'default_kiosk_id' => env('DEFAULT_KIOSK_ID', 'FHK-JAKARTA-01'),
     'kiosk_api_secret' => env('KIOSK_API_SECRET', 'fhk_esp32_secret_token_2026'),
+    'allow_dev_fallback' => env('AIYO_DEV_FALLBACK', true),
 ];
+

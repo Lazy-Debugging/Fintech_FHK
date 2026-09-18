@@ -3,7 +3,7 @@
 @section('title', 'Sedang Menuang Air - Fresh Hydration Kios')
 
 @section('content')
-<div class="w-full max-w-2xl mx-auto my-auto py-4 text-center space-y-8">
+<div class="w-full max-w-2xl mx-auto my-auto py-2 sm:py-4 text-center space-y-5 sm:space-y-8">
 
     <!-- Top Badge -->
     <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-950/80 border border-purple-800/80 text-purple-300 text-xs font-semibold animate-pulse">
@@ -12,13 +12,13 @@
     </div>
 
     <!-- Main Dispensing Animation Box -->
-    <div class="glass-panel rounded-3xl p-8 sm:p-10 space-y-8 relative overflow-hidden border border-purple-500/40 shadow-2xl shadow-purple-950/60">
+    <div class="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-10 space-y-6 sm:space-y-8 relative overflow-hidden border border-purple-500/40 shadow-2xl shadow-purple-950/60">
         
         <!-- Glowing Ambient Lighting -->
         <div class="absolute inset-0 bg-gradient-to-b from-purple-500/10 via-cyan-500/5 to-transparent pointer-events-none"></div>
 
         <!-- Dispenser Nozzle & Animated Tumbler Graphic -->
-        <div class="relative w-64 h-64 mx-auto flex flex-col items-center justify-between py-2">
+        <div class="relative w-52 h-52 sm:w-64 sm:h-64 mx-auto flex flex-col items-center justify-between py-2">
             
             <!-- Dispenser Nozzle with UV Emitter -->
             <div class="w-20 h-8 rounded-b-xl bg-slate-800 border-2 border-slate-600 relative z-20 flex items-center justify-center shadow-lg">
@@ -26,7 +26,7 @@
             </div>
 
             <!-- Water Stream (Animated SVG / Div) -->
-            <div id="water-stream" class="w-3 h-32 bg-gradient-to-b from-purple-400 via-cyan-300 to-sky-400 rounded-full shadow-[0_0_15px_#38bdf8] opacity-90 transition-all duration-500 animate-pulse"></div>
+            <div id="water-stream" class="w-3 h-24 sm:h-32 bg-gradient-to-b from-purple-400 via-cyan-300 to-sky-400 rounded-full shadow-[0_0_15px_#38bdf8] opacity-90 transition-all duration-500 animate-pulse"></div>
 
             <!-- Tumbler / Cup Silhouette Graphic -->
             <div class="w-28 h-28 border-4 border-slate-600/80 rounded-b-3xl relative overflow-hidden bg-slate-900/60 shadow-inner flex items-end">
@@ -44,7 +44,7 @@
                 Langkah 1: Mensterilkan Nozzle dengan Sinar UV-C...
             </div>
             
-            <div class="text-4xl sm:text-5xl font-black text-white font-mono flex items-center justify-center gap-1">
+            <div class="text-3xl sm:text-5xl font-black text-white font-mono flex flex-wrap items-center justify-center gap-1">
                 <span id="volume-counter">0</span>
                 <span class="text-2xl text-slate-500">/ {{ $transaksi->volume_ml }} ml</span>
             </div>

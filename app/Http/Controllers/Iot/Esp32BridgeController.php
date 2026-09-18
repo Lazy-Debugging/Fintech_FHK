@@ -32,7 +32,7 @@ class Esp32BridgeController extends Controller
 
         // Cari transaksi yang berstatus PAID dan menunggu pengeluaran air
         $pendingOrder = Transaksi::where('kiosk_id', $kioskId)
-            ->where('status', 'PAID')
+            ->where('status', 'QUEUED')
             ->orderBy('created_at', 'asc')
             ->first();
 
@@ -67,6 +67,17 @@ class Esp32BridgeController extends Controller
             'message'    => 'Tidak ada antrean penuangan air',
             'server_time'=> now()->toIso8601String()
         ]);
+    }
+
+    public function redeemPickup(string $kioskId, Request $request): JsonResponse
+    {
+        $kiosk = Kiosk::findOrFail($kioskId);
+        abort_unless(hash_equals($kiosk->api_secret_token, (string) $request->header('X-Kiosk-Secret')), 401);
+        $token = $request->validate(['token' => 'required|string|max:100'])['token'];
+        $transaction = Transaksi::where('kiosk_id', $kioskId)->where('redemption_token_hash', hash('sha256', $token))->where('status', 'AWAITING_KIOSK_SCAN')->where('redemption_expires_at', '>', now())->first();
+        if (!$transaction) return response()->json(['status' => 'INVALID', 'message' => 'QR tidak valid atau telah digunakan.'], 422);
+        $transaction->update(['status' => 'QUEUED', 'redeemed_at' => now()]);
+        return response()->json(['status' => 'QUEUED', 'message' => 'Pesanan diterima kiosk.']);
     }
 
     /**

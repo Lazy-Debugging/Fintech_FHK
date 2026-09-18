@@ -1,5 +1,5 @@
 -- Tabel untuk menyimpan transaksi/invoice dari AiYO Bills Invoice
--- Sesuai skema pada slide "Tabel transaksi"
+-- Sesuai skema pada slide Meeting 03 "Tabel transaksi" (Slide 18 & 19)
 
 CREATE TABLE `transaksi` (
   `referenceId` varchar(25) NOT NULL,

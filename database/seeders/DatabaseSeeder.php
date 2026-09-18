@@ -8,6 +8,8 @@ use App\Models\TelemetryLog;
 use App\Models\Transaksi;
 use App\Models\UvSchedule;
 use Illuminate\Database\Seeder;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -16,6 +18,7 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        User::updateOrCreate(['username' => 'admin'], ['name' => 'Administrator FHK', 'email' => 'admin@fhk.local', 'password' => Hash::make('admin123'), 'role' => 'admin', 'email_verified_at' => now()]);
         // 1. Kiosk Utama
         $kiosk = Kiosk::updateOrCreate(
             ['id' => 'FHK-JAKARTA-01'],
