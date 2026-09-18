@@ -48,7 +48,17 @@ class KioskScreenController extends Controller
             return redirect()->route('kiosk.receipt', ['invoiceId' => $invoiceId]);
         }
 
-        return view('kiosk.qris_payment', compact('transaksi'));
+        // Redirect langsung ke website resmi AiYO Bills Invoice Gateway!
+        if (!empty($transaksi->invoice_url) && str_contains($transaksi->invoice_url, 'aiyo.id')) {
+            return redirect()->away($transaksi->invoice_url);
+        }
+
+        if (!empty($transaksi->invoiceId) && !empty($transaksi->aiyo_access_token)) {
+            $aiyoUrl = "https://bills-invoice.aiyo.id/bills/invoice/{$transaksi->invoiceId}?accessToken=" . urlencode($transaksi->aiyo_access_token);
+            return redirect()->away($aiyoUrl);
+        }
+
+        return redirect()->away("https://bills-invoice.aiyo.id/bills/invoice/{$invoiceId}");
     }
 
     /**

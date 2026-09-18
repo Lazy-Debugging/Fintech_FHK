@@ -116,15 +116,15 @@ class OrderController extends Controller
         ]);
         if ($voucher) { VoucherRedemption::create(['voucher_id' => $voucher->id, 'user_id' => $request->user()->id, 'invoice_id' => $invoiceId]); $voucher->increment('usage_count'); }
 
-        // Redirect langsung ke URL resmi AiYO Bills Invoice Gateway
+        // Redirect langsung 100% ke URL resmi AiYO Bills Invoice Gateway
         $redirectUrl = (!empty($invoiceResult['invoiceUrl']) && str_contains($invoiceResult['invoiceUrl'], 'aiyo.id'))
             ? $invoiceResult['invoiceUrl']
-            : route('kiosk.qris', ['invoiceId' => $invoiceId]);
+            : "https://bills-invoice.aiyo.id/bills/invoice/{$invoiceId}?accessToken=" . urlencode($aiyoAccessToken);
 
         return response()->json([
             'success'     => true,
             'invoiceId'   => $invoiceId,
-            'invoiceUrl'  => $invoiceResult['invoiceUrl'] ?? null,
+            'invoiceUrl'  => $redirectUrl,
             'redirectUrl' => $redirectUrl
         ]);
     }
