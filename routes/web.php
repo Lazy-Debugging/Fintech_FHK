@@ -84,7 +84,12 @@ Route::get('/app/fhk/kiosk', [KioskScreenController::class, 'index'])->name('kio
 Route::get('/kiosk/qris/{invoiceId}', [KioskScreenController::class, 'qris'])->name('kiosk.qris');
 Route::get('/kiosk/dispensing/{invoiceId}', [KioskScreenController::class, 'dispensing'])->name('kiosk.dispensing');
 Route::get('/kiosk/receipt/{invoiceId}', [KioskScreenController::class, 'receipt'])->name('kiosk.receipt');
-Route::post('/api/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
+Route::post('/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder'])->name('kiosk.order');
+Route::post('/app/fhk/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
+Route::post('/fhk/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
+Route::post('/api/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder'])->name('api.kiosk.order.web');
+Route::post('/app/fhk/api/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
+Route::post('/fhk/api/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
 Route::get('/api/kiosk/payment-status/{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
 
 // AiYO Bills Invoice Gateway Callback Webhook (Target: https://mesinbayar.com/app/fhk/callback/)

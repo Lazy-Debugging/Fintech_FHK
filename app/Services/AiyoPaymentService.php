@@ -53,7 +53,9 @@ class AiyoPaymentService
             curl_setopt($chGetToken, CURLOPT_RETURNTRANSFER, TRUE);
             curl_setopt($chGetToken, CURLOPT_ENCODING, '');
             curl_setopt($chGetToken, CURLOPT_MAXREDIRS, 10);
-            curl_setopt($chGetToken, CURLOPT_TIMEOUT, 15);
+            curl_setopt($chGetToken, CURLOPT_TIMEOUT, 10);
+            curl_setopt($chGetToken, CURLOPT_SSL_VERIFYPEER, FALSE);
+            curl_setopt($chGetToken, CURLOPT_SSL_VERIFYHOST, 0);
             curl_setopt($chGetToken, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
             curl_setopt($chGetToken, CURLOPT_FOLLOWLOCATION, TRUE);
             curl_setopt($chGetToken, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
@@ -159,9 +161,11 @@ class AiyoPaymentService
 
             try {
                 $ch = curl_init($urlCreateInvoice);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 12);
                 curl_setopt($ch, CURLOPT_POST, 1);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
                 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
                 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, $rawBody);
@@ -191,25 +195,32 @@ class AiyoPaymentService
             }
         }
 
-        // Fallback: Gunakan jembatan upstream respon.php yang sudah 100% terbukti di server mesinbayar.com
-        try {
-            $chUp = curl_init('https://mesinbayar.com/app/fhk/respon.php?format=json');
-            curl_setopt($chUp, CURLOPT_TIMEOUT, 25);
-            curl_setopt($chUp, CURLOPT_POST, 1);
-            curl_setopt($chUp, CURLOPT_RETURNTRANSFER, TRUE);
-            curl_setopt($chUp, CURLOPT_SSL_VERIFYPEER, FALSE);
-            curl_setopt($chUp, CURLOPT_POSTFIELDS, http_build_query([
-                'water_type'   => $waterType,
-                'volume_ml'    => $volumeMl,
-                'payAmount'    => $payAmount,
-                'userName'     => $params['userName'] ?? 'Pengunjung Kios',
-                'userEmail'    => $params['userEmail'] ?? 'customer@fhk.id',
-                'userPhone'    => $params['userPhone'] ?? '0812000000',
-                'referenceId'  => $referenceId,
-                'format'       => 'json'
-            ]));
-            $resUp = curl_exec($chUp);
-            curl_close($chUp);
+        // Fallback: Gunakan jembatan upstream respon.php jika IP lokal/pengembang belum di-whitelist
+        $upstreamUrls = [
+            'https://app.mesinbayar.com/fhk/respon.php?format=json',
+            'https://mesinbayar.com/app/fhk/respon.php?format=json',
+        ];
+
+        foreach ($upstreamUrls as $upUrl) {
+            try {
+                $chUp = curl_init($upUrl);
+                curl_setopt($chUp, CURLOPT_TIMEOUT, 8);
+                curl_setopt($chUp, CURLOPT_POST, 1);
+                curl_setopt($chUp, CURLOPT_RETURNTRANSFER, TRUE);
+                curl_setopt($chUp, CURLOPT_SSL_VERIFYPEER, FALSE);
+                curl_setopt($chUp, CURLOPT_SSL_VERIFYHOST, 0);
+                curl_setopt($chUp, CURLOPT_POSTFIELDS, http_build_query([
+                    'water_type'   => $waterType,
+                    'volume_ml'    => $volumeMl,
+                    'payAmount'    => $payAmount,
+                    'userName'     => $params['userName'] ?? 'Pengunjung Kios',
+                    'userEmail'    => $params['userEmail'] ?? 'customer@fhk.id',
+                    'userPhone'    => $params['userPhone'] ?? '0812000000',
+                    'referenceId'  => $referenceId,
+                    'format'       => 'json'
+                ]));
+                $resUp = curl_exec($chUp);
+                curl_close($chUp);
 
             $jsonUp = json_decode($resUp, true);
             if ($jsonUp && !empty($jsonUp['success']) && !empty($jsonUp['invoiceId'])) {
@@ -230,6 +241,7 @@ class AiyoPaymentService
         } catch (\Throwable $e) {
             Log::warning('Upstream respon.php fallback failed: ' . $e->getMessage());
         }
+    }
 
         return [
             'success' => false,

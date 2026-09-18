@@ -20,5 +20,10 @@ class VerifyCsrfToken extends Middleware
         'api/aiyo/callback/*',
         'api/kiosk/*',
         'api/iot/*',
+        'kiosk/order',
+        'app/fhk/kiosk/order',
+        'fhk/kiosk/order',
+        'app/fhk/api/kiosk/*',
+        'fhk/api/kiosk/*',
     ];
 }

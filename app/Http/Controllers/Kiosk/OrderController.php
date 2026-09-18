@@ -26,7 +26,7 @@ class OrderController extends Controller
     /**
      * Membuat Order & Menghasilkan AiYO QRIS Invoice
      */
-    public function createOrder(Request $request): JsonResponse
+    public function createOrder(Request $request)
     {
         $validated = $request->validate([
             'kiosk_id'    => 'required|string',
@@ -40,6 +40,9 @@ class OrderController extends Controller
 
         $kiosk = Kiosk::find($validated['kiosk_id']);
         if (!$kiosk) {
+            if (!$request->expectsJson() && !$request->ajax()) {
+                return redirect()->back()->with('error', 'Kios tidak ditemukan atau sedang offline.');
+            }
             return response()->json([
                 'success' => false,
                 'message' => 'Kios tidak ditemukan atau sedang offline.'
@@ -47,6 +50,9 @@ class OrderController extends Controller
         }
 
         if ($kiosk->current_water_level_pct <= 5.0) {
+            if (!$request->expectsJson() && !$request->ajax()) {
+                return redirect()->back()->with('error', 'Stok air di tangki kios habis. Mohon tunggu proses isi ulang maintenance.');
+            }
             return response()->json([
                 'success' => false,
                 'message' => 'Stok air di tangki kios habis. Mohon tunggu proses isi ulang maintenance.'
@@ -85,6 +91,9 @@ class OrderController extends Controller
         ]);
 
         if (!$invoiceResult['success']) {
+            if (!$request->expectsJson() && !$request->ajax()) {
+                return redirect()->back()->with('error', $invoiceResult['message'] ?? 'Gagal membuat tagihan di AiYO.');
+            }
             return response()->json(['success' => false, 'message' => $invoiceResult['message']], 502);
         }
 
@@ -120,6 +129,11 @@ class OrderController extends Controller
         $redirectUrl = (!empty($invoiceResult['invoiceUrl']) && str_contains($invoiceResult['invoiceUrl'], 'aiyo.id'))
             ? $invoiceResult['invoiceUrl']
             : "https://bills-invoice.aiyo.id/bills/invoice/{$invoiceId}?accessToken=" . urlencode($aiyoAccessToken);
+
+        // Jika request dari form submission biasa, redirect browser langsung ke gateway AiYO
+        if (!$request->expectsJson() && !$request->ajax()) {
+            return redirect()->away($redirectUrl);
+        }
 
         return response()->json([
             'success'     => true,

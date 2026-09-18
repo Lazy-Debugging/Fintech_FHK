@@ -18,6 +18,25 @@
         </p>
     </div>
 
+    @if(session('error'))
+    <div class="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-center gap-3">
+        <i class="fa-solid fa-triangle-exclamation text-rose-400 text-lg"></i>
+        <div>{{ session('error') }}</div>
+    </div>
+    @endif
+
+    <!-- Form Submit Tersembunyi (Langsung Redirect ke AiYO Gateway) -->
+    <form id="kiosk-order-form" method="POST" action="{{ url('kiosk/order') }}" class="hidden">
+        @csrf
+        <input type="hidden" name="kiosk_id" value="{{ $kiosk->id }}">
+        <input type="hidden" name="water_type" id="form-water-type" value="COLD">
+        <input type="hidden" name="volume_ml" id="form-volume-ml" value="500">
+        <input type="hidden" name="user_name" value="{{ auth()->user()?->name ?? 'Pengunjung Kios FHK' }}">
+        <input type="hidden" name="user_email" value="{{ auth()->user()?->email ?? 'customer@fhk.id' }}">
+        <input type="hidden" name="user_phone" value="0812000000">
+        <input type="hidden" name="voucher_code" id="form-voucher-code" value="">
+    </form>
+
     <!-- Main Selection Form Container -->
     <div class="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-8 space-y-6 sm:space-y-8 relative overflow-hidden">
         <div class="absolute -top-24 -right-24 w-60 h-60 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -237,49 +256,28 @@
         updatePriceUI();
     }
 
-    async function submitOrder() {
+    function submitOrder() {
         const btn = document.getElementById('btn-pay');
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i> <span>Membuat AiYO QRIS...</span>';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i> <span>Membuka AiYO QRIS...</span>';
 
-        const orderPayload = {
-            kiosk_id: kioskId,
-            water_type: selectedTemp,
-            volume_ml: selectedVol,
-            user_name: @json(auth()->user()?->name ?? 'Pengunjung Kios FHK'),
-            user_email: @json(auth()->user()?->email ?? 'customer@fhk.id'),
-            user_phone: '0812000000'
-        };
+        const form = document.getElementById('kiosk-order-form');
+        document.getElementById('form-water-type').value = selectedTemp;
+        document.getElementById('form-volume-ml').value = selectedVol;
 
         @auth
-        orderPayload.voucher_code = document.getElementById('voucher-code').value.trim();
+        const voucherInput = document.getElementById('voucher-code');
+        if (voucherInput) {
+            document.getElementById('form-voucher-code').value = voucherInput.value.trim();
+        }
         @endauth
 
-        try {
-            const response = await fetch("{{ route('api.kiosk.order') }}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                body: JSON.stringify(orderPayload)
-            });
+        // Tentukan URL action secara dinamis berdasarkan URL saat ini di browser (kompatibel penuh dengan cPanel subpath)
+        const currentPath = window.location.pathname.replace(/\/kiosk\/?$/, '').replace(/\/$/, '');
+        form.action = (currentPath ? currentPath : '') + '/kiosk/order';
 
-            const data = await response.json();
-            const targetUrl = data.redirectUrl || data.invoiceUrl;
-            if (data.success && targetUrl) {
-                window.location.href = targetUrl;
-            } else {
-                alert(data.message || 'Gagal memproses pesanan kios.');
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-qrcode text-lg"></i> <span>Bayar dengan AiYO QRIS</span> <i class="fa-solid fa-arrow-right text-sm"></i>';
-            }
-        } catch (err) {
-            console.error(err);
-            alert('Terjadi kesalahan komunikasi dengan server kiosk.');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-qrcode text-lg"></i> <span>Bayar dengan AiYO QRIS</span> <i class="fa-solid fa-arrow-right text-sm"></i>';
-        }
+        // Submit form browser langsung - respon server 302 akan langsung mengarahkan browser ke halaman AiYO
+        form.submit();
     }
 
     // Initialize UI on load
