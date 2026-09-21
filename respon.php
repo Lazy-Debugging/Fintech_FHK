@@ -10,11 +10,44 @@ include_once __DIR__ . "/token.php";
 // 1. Parameter input
 $waterType   = $_POST['water_type'] ?? $_GET['water_type'] ?? 'COLD';
 $volumeMl    = (int) ($_POST['volume_ml'] ?? $_GET['volume_ml'] ?? 500);
-$payAmount   = (int) ($_POST['payAmount'] ?? $_GET['payAmount'] ?? 3500);
-$userName    = $_POST['userName'] ?? $_GET['userName'] ?? 'Pengunjung Kios';
-$userEmail   = $_POST['userEmail'] ?? $_GET['userEmail'] ?? 'customer@fhk.id';
-$userPhone   = $_POST['userPhone'] ?? $_GET['userPhone'] ?? '0812000000';
+$payAmountInput = $_POST['payAmount'] ?? $_GET['payAmount'] ?? null;
+$priceMatrix = [
+    'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ],
+    'NORMAL' => [ 250 => 1500, 500 => 2500, 1000 => 4500 ],
+];
+$wtUpper = strtoupper($waterType);
+$kioskIdInput = $_POST['kiosk_id'] ?? $_GET['kiosk_id'] ?? null;
+
+if (class_exists(\App\Models\KioskPricing::class)) {
+    $calculatedPrice = \App\Models\KioskPricing::getPrice($wtUpper, $volumeMl, $kioskIdInput);
+} else {
+    $calculatedPrice = $priceMatrix[$wtUpper][$volumeMl] ?? 3500;
+}
+
+if ($payAmountInput !== null && is_numeric($payAmountInput)) {
+    $payAmount = (int) $payAmountInput;
+} else {
+    $payAmount = $calculatedPrice;
+}
 $referenceId = $_POST['referenceId'] ?? $_GET['referenceId'] ?? ('FHK' . date('ymdHis') . rand(10, 99));
+
+// Deteksi Akun Pelanggan (User vs Guest)
+$userName  = $_POST['userName'] ?? $_GET['userName'] ?? '';
+$userEmail = $_POST['userEmail'] ?? $_GET['userEmail'] ?? '';
+$userPhone = $_POST['userPhone'] ?? $_GET['userPhone'] ?? '';
+
+if (function_exists('auth') && auth()->check()) {
+    $u = auth()->user();
+    if (empty($userName) || $userName === 'Pengunjung Kios') $userName = $u->name;
+    if (empty($userEmail) || $userEmail === 'customer@fhk.id') $userEmail = $u->email;
+    if (empty($userPhone) || $userPhone === '0812000000') $userPhone = $u->phone ?? '081234567890';
+} else {
+    $guestHash = substr(md5($referenceId), 0, 6);
+    if (empty($userName) || $userName === 'Pengunjung Kios') $userName = "Pengunjung Tamu FHK (#{$guestHash})";
+    if (empty($userEmail) || $userEmail === 'customer@fhk.id') $userEmail = "tamu.{$guestHash}@fhk.id";
+    if (empty($userPhone) || $userPhone === '0812000000') $userPhone = "0812-GUEST-FHK";
+}
+
 $remarks     = $_POST['remarks'] ?? $_GET['remarks'] ?? "Refill Air {$waterType} {$volumeMl}ml";
 $requestedFormat = $_GET['format'] ?? $_POST['format'] ?? '';
 $isJson = ($requestedFormat === 'json') || (str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json'));
@@ -23,8 +56,8 @@ $isJson = ($requestedFormat === 'json') || (str_contains($_SERVER['HTTP_ACCEPT']
 // null (General Invoice resmi AiYO) paling pertama agar langsung sukses tanpa delay penolakan bankCode
 $paymentOptions = [
     null,                                      // Opsi 1: General Invoice resmi AiYO (Slide 12-14)
-    ['type' => 'QRIS'],                       // Opsi 2: QRIS direct
-    ['type' => 'QRIS', 'bankCode' => '503'],  // Opsi 3: Slide 8
+    ['type' => 'QRIS'],                        // Opsi 2: QRIS direct
+    ['type' => 'QRIS', 'bankCode' => '503'],   // Opsi 3: Slide 8
 ];
 
 // Jika user meminta tipe spesifik lewat URL (?type=none atau ?type=QRIS)
@@ -157,12 +190,10 @@ if (!empty($invoiceId) && !empty($invoiceAccessToken)) {
             } catch (Exception $e) {}
         }
     }
-}
 
-// 5. Output Format JSON (Jika dipanggil oleh Kios / Service)
-if ($isJson) {
-    header('Content-Type: application/json; charset=utf-8');
-    if (!empty($invoiceId)) {
+    // 5. Output Format JSON (Jika dipanggil oleh Kios / Service)
+    if ($isJson) {
+        header('Content-Type: application/json; charset=utf-8');
         echo json_encode([
             'success'      => true,
             'responseCode' => '2000000',
@@ -174,7 +205,21 @@ if ($isJson) {
             'invoiceUrl'   => $invoiceURL,
             'raw_response' => $invoice
         ], JSON_PRETTY_PRINT);
-    } else {
+        exit;
+    }
+
+    // 6. Redirect Instan 302 ke Halaman QRIS Internal Website FHK (Tanpa Layar Perantara White Screen)
+    $internalQrisUrl = function_exists('route')
+        ? route('kiosk.qris', ['invoiceId' => $invoiceId])
+        : (function_exists('url') ? url("kiosk/qris/{$invoiceId}") : "index.php/kiosk/qris/{$invoiceId}");
+
+    header("Location: " . $internalQrisUrl);
+    exit;
+
+} else {
+    // 5b. Output JSON Error
+    if ($isJson) {
+        header('Content-Type: application/json; charset=utf-8');
         http_response_code(400);
         echo json_encode([
             'success'      => false,
@@ -182,70 +227,15 @@ if ($isJson) {
             'message'      => $invoice->responseMessage ?? 'Gagal membuat tagihan invoice di AiYO',
             'raw_response' => $invoice ?: $responseCreateInvoice
         ], JSON_PRETTY_PRINT);
-    }
-    exit;
-}
-
-// 6. Output HTML Biasa Sesuai Slide 25 & 26 (atau redirect langsung jika dipanggil dari Kios)
-if (!empty($invoiceId) && !empty($invoiceAccessToken)) {
-    if (empty($invoiceURL)) {
-        $invoiceURL = "https://bills-invoice.aiyo.id/bills/invoice/{$invoiceId}?accessToken=" . urlencode($invoiceAccessToken);
+        exit;
     }
 
-    // Tampilkan halaman konfirmasi resmi sesuai modul Slide 25 & 26 dengan tombol QRIS dan auto-redirect
-    echo "<!DOCTYPE html>";
-    echo "<html lang='id'>";
-    echo "<head>";
-    echo "<meta charset='UTF-8'>";
-    echo "<meta name='viewport' content='width=device-width, initial-scale=1.0'>";
-    echo "<title>Invoice AiYO QRIS Berhasil Dibuat</title>";
-    echo "</head>";
-    echo "<body style='background:#f8fafc; font-family:-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; margin:0; padding:20px;'>";
-    echo "<div style='padding: 24px; max-width: 580px; margin: 30px auto; border: 1px solid #10b981; border-radius: 16px; background: #ffffff; box-shadow: 0 10px 25px rgba(0,0,0,0.08);'>";
-    echo "<div style='display:flex; align-items:center; gap:12px; margin-bottom: 16px;'>";
-    echo "<div style='background:#ecfdf5; border-radius:50%; width:44px; height:44px; display:flex; align-items:center; justify-content:center; font-size:22px;'>✅</div>";
-    echo "<div>";
-    echo "<h2 style='margin:0; color:#047857; font-size: 20px;'>Invoice AiYO QRIS Berhasil Dibuat</h2>";
-    echo "<p style='margin:2px 0 0; color:#64748b; font-size: 13px;'>Diterbitkan langsung oleh AiYO Bills Invoice Gateway</p>";
-    echo "</div>";
-    echo "</div>";
-
-    echo "<div style='background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin:16px 0; font-size: 14px; line-height: 1.8;'>";
-    echo "<div style='display:flex; justify-content:space-between;'><span style='color:#64748b;'>Pesanan:</span><strong style='color:#0f172a;'>Refill Air " . htmlspecialchars($waterType) . " " . htmlspecialchars($volumeMl) . " ml</strong></div>";
-    echo "<div style='display:flex; justify-content:space-between;'><span style='color:#64748b;'>Invoice ID:</span><strong style='color:#0284c7; font-family:monospace;'>" . htmlspecialchars($invoiceId) . "</strong></div>";
-    echo "<div style='display:flex; justify-content:space-between;'><span style='color:#64748b;'>Metode:</span><span style='background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:6px; font-weight:bold; font-size:12px;'>QRIS Dinamis</span></div>";
-    echo "<div style='display:flex; justify-content:space-between;'><span style='color:#64748b;'>URL Callback:</span><code style='font-size:11px;'>" . htmlspecialchars($callbackUrl) . "</code></div>";
-    echo "<div style='display:flex; justify-content:space-between; border-top:1px dashed #cbd5e1; padding-top:8px; margin-top:8px;'><span style='color:#64748b; font-weight:bold;'>Total Tagihan:</span><strong style='color:#059669; font-size:20px;'>Rp " . number_format($payAmount, 0, ',', '.') . "</strong></div>";
-    echo "</div>";
-
-    echo "<div style='display:flex; flex-direction:column; gap:10px; margin-top:20px;'>";
-    echo "<a id='btn-pay-aiyo' href='" . htmlspecialchars($invoiceURL) . "' style='display:block; text-align:center; padding:14px; background:#0284c7; color:white; text-decoration:none; border-radius:10px; font-weight:bold; font-size:15px; box-shadow:0 4px 12px rgba(2,132,199,0.3);'>📱 Buka Halaman Pembayaran QRIS AiYO &rarr;</a>";
-    echo "<a href='cek.php?invoiceId=" . urlencode($invoiceId) . "&accessToken=" . urlencode($invoiceAccessToken) . "' style='display:block; text-align:center; padding:12px; background:#f1f5f9; color:#334155; text-decoration:none; border-radius:10px; font-weight:bold; font-size:13px; border:1px solid #cbd5e1;'>🔍 Cek Status Invoice (cek.php)</a>";
-    echo "</div>";
-
-    echo "<p style='text-align:center; font-size:12px; color:#94a3b8; margin-top:16px;'>Dialihkan otomatis ke AiYO Gateway dalam <span id='countdown'>2</span> detik...</p>";
-
-    echo "<script>";
-    echo "let count = 2;";
-    echo "const timer = setInterval(() => {";
-    echo "    count--;";
-    echo "    const el = document.getElementById('countdown');";
-    echo "    if (el) el.textContent = count;";
-    echo "    if (count <= 0) {";
-    echo "        clearInterval(timer);";
-    echo "        window.location.href = '" . addslashes($invoiceURL) . "';";
-    echo "    }";
-    echo "}, 1000);";
-    echo "</script>";
-    echo "</div>";
-    echo "</body>";
-    echo "</html>";
-} else {
+    // 6b. Tampilkan Pesan Error HTML
     echo "<div style='font-family: sans-serif; padding: 20px; max-width: 600px; margin: 20px auto; border: 1px solid #ef4444; border-radius: 12px; background: #fef2f2;'>";
     echo "<h2 style='color: #b91c1c;'>❌ Gagal Membuat Invoice AiYO</h2>";
     $msg = $invoice->responseMessage ?? 'Terjadi kesalahan komunikasi dengan AiYO Gateway';
     echo "<p><strong>Pesan Gateway:</strong> " . htmlspecialchars($msg) . "</p>";
-    
+
     if (str_contains($msg, 'IP Address Not Allowed')) {
         preg_match('/([0-9a-fA-F\.:]+)$/', $msg, $ipMatch);
         $clientIp = $ipMatch[1] ?? 'IP Anda';

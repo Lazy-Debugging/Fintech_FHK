@@ -84,6 +84,11 @@
                 <span>Voucher</span>
             </a>
 
+            <a href="{{ route('admin.pricing.index') }}" class="px-3 py-2 rounded-xl {{ request()->routeIs('admin.pricing.*') ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-white' }} flex items-center gap-2">
+                <i class="fa-solid fa-tags"></i>
+                <span>Pengaturan Harga</span>
+            </a>
+
             <a href="{{ route('kiosk.home') }}" target="_blank" class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold transition flex items-center gap-2 shadow-md shadow-cyan-500/20">
                 <i class="fa-solid fa-desktop"></i>
                 <span>Buka Layar Kios PWA</span>
@@ -100,6 +105,9 @@
             </a>
             <a href="{{ route('admin.vouchers.index') }}" class="px-3 py-2.5 rounded-xl {{ request()->routeIs('admin.vouchers.*') ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-slate-900 text-slate-300 border border-slate-800' }} flex items-center gap-2">
                 <i class="fa-solid fa-ticket"></i><span>Voucher</span>
+            </a>
+            <a href="{{ route('admin.pricing.index') }}" class="px-3 py-2.5 rounded-xl {{ request()->routeIs('admin.pricing.*') ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-slate-900 text-slate-300 border border-slate-800' }} flex items-center gap-2">
+                <i class="fa-solid fa-tags"></i><span>Pengaturan Harga</span>
             </a>
             <a href="{{ route('kiosk.home') }}" target="_blank" class="px-3 py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-bold flex items-center gap-2">
                 <i class="fa-solid fa-desktop"></i><span>Buka Layar Kios PWA</span>

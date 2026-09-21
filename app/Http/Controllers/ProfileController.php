@@ -14,7 +14,10 @@ class ProfileController extends Controller
         $guestToken = $request->session()->get('guest_order_id');
 
         $transactions = Transaksi::with('kiosk')
-            ->when($user, fn ($query) => $query->where('user_id', $user->id))
+            ->when($user, fn ($query) => $query->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id)
+                  ->orWhere('userEmail', $user->email);
+            }))
             ->when(! $user, fn ($query) => $query->whereNull('user_id')->where('guest_token', $guestToken))
             ->latest('created_at')
             ->paginate(10);

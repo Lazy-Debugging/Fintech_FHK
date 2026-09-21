@@ -33,32 +33,23 @@ class KioskScreenController extends Controller
             ]
         );
 
-        return view('kiosk.index', compact('kiosk'));
+        $priceMatrix = \App\Models\KioskPricing::getPriceMatrix($kiosk->id);
+
+        return view('kiosk.index', compact('kiosk', 'priceMatrix'));
     }
 
     /**
-     * Layar Pembayaran QRIS Dinamis
+     * Layar Pembayaran QRIS Dinamis Internal (In-App FHK Website)
      */
     public function qris(string $invoiceId)
     {
         $transaksi = Transaksi::with('kiosk')->findOrFail($invoiceId);
 
-        // Jika transaksi sudah selesai, langsung arahkan ke receipt
         if ($transaksi->status === 'COMPLETED') {
             return redirect()->route('kiosk.receipt', ['invoiceId' => $invoiceId]);
         }
 
-        // Redirect langsung ke website resmi AiYO Bills Invoice Gateway!
-        if (!empty($transaksi->invoice_url) && str_contains($transaksi->invoice_url, 'aiyo.id')) {
-            return redirect()->away($transaksi->invoice_url);
-        }
-
-        if (!empty($transaksi->invoiceId) && !empty($transaksi->aiyo_access_token)) {
-            $aiyoUrl = "https://bills-invoice.aiyo.id/bills/invoice/{$transaksi->invoiceId}?accessToken=" . urlencode($transaksi->aiyo_access_token);
-            return redirect()->away($aiyoUrl);
-        }
-
-        return redirect()->away("https://bills-invoice.aiyo.id/bills/invoice/{$invoiceId}");
+        return view('kiosk.qris_payment', compact('transaksi'));
     }
 
     /**

@@ -167,6 +167,12 @@
             </button>
         </div>
 
+        <!-- Error Box for Order Failures -->
+        <div id="order-error-box" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold flex items-center gap-2">
+            <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
+            <span></span>
+        </div>
+
     </div>
 
     <!-- 3-Pillar IoT Assurance Cards -->
@@ -202,6 +208,29 @@
         </div>
     </div>
 
+    <!-- Banner Redeem QR untuk Pelanggan HP -->
+    <div class="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6 bg-gradient-to-r from-cyan-950/40 via-slate-900/80 to-blue-950/40 border border-cyan-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+        <div class="flex items-center gap-4 text-center sm:text-left">
+            <div class="w-20 h-20 rounded-2xl bg-white p-2 shadow-lg shrink-0 flex items-center justify-center mx-auto sm:mx-0">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=FHK-KIOSK-QR:{{ $kiosk->id }}" alt="QR Code Kios" class="w-full h-full object-contain">
+            </div>
+            <div class="space-y-1">
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[11px] font-extrabold">
+                    <i class="fa-solid fa-qrcode"></i> SCAN UNTUK REDEEM AIR
+                </div>
+                <h3 class="text-base font-black text-white">Sudah Bayar dari HP?</h3>
+                <p class="text-xs text-slate-300">
+                    Buka <strong>Profil &gt; Riwayat Transaksi</strong> di HP Anda, klik <strong>"Scan QR Kios"</strong>, lalu arahkan kamera HP ke QR Code ini!
+                </p>
+            </div>
+        </div>
+        <div class="shrink-0 text-center sm:text-right">
+            <span class="text-xs font-mono text-cyan-400 font-bold bg-slate-900/80 px-3 py-1.5 rounded-xl border border-cyan-800">
+                ID Kios: {{ $kiosk->id }}
+            </span>
+        </div>
+    </div>
+
 </div>
 @endsection
 
@@ -211,11 +240,24 @@
     let selectedVol = 500;
     const kioskId = "{{ $kiosk->id }}";
 
-    // Matrix Harga
-    const priceMatrix = {
-        COLD: { 250: 2000, 500: 3500, 1000: 6000 },
-        NORMAL: { 250: 1500, 500: 2500, 1000: 4500 }
-    };
+    // Auto-polling Layar Kios: Cek apakah ada penuangan air yang dipicu dari Scan HP
+    const pollDispenseBaseUrl = "{{ url('api/kiosk/') }}";
+    setInterval(function() {
+        fetch(`${pollDispenseBaseUrl}${kioskId}/poll-dispense`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.dispensing && data.redirectUrl) {
+                    window.location.href = data.redirectUrl;
+                }
+            })
+            .catch(() => {});
+    }, 2000);
+
+    // Matrix Harga Dynamic dari Database
+    const priceMatrix = {!! json_encode($priceMatrix ?? [
+        'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ],
+        'NORMAL' => [ 250 => 1500, 500 => 2500, 1000 => 4500 ]
+    ]) !!};
 
     function updatePriceUI() {
         const currentPrices = priceMatrix[selectedTemp];
@@ -269,24 +311,46 @@
         const currentPrices = priceMatrix[selectedTemp];
         const total = currentPrices[selectedVol];
 
-        const form = document.getElementById('kiosk-order-form');
-        document.getElementById('form-water-type').value = selectedTemp;
-        document.getElementById('form-volume-ml').value = selectedVol;
-        document.getElementById('form-pay-amount').value = total;
-
         @auth
         const voucherInput = document.getElementById('voucher-code');
-        if (voucherInput) {
-            document.getElementById('form-voucher-code').value = voucherInput.value.trim();
-        }
+        const voucherCode = voucherInput ? voucherInput.value.trim() : '';
+        @else
+        const voucherCode = '';
         @endauth
 
-        // Arahkan browser langsung ke respon.php membawa parameter pilihan air & volume
-        const baseUrl = "{{ url('respon.php') }}";
-        const targetUrl = baseUrl + '?water_type=' + encodeURIComponent(selectedTemp) +
-                                    '&volume_ml=' + encodeURIComponent(selectedVol) +
-                                    '&payAmount=' + encodeURIComponent(total);
-        window.location.href = targetUrl;
+        // POST ke endpoint Laravel OrderController untuk membuat transaksi & invoice AiYO
+        fetch("{{ route('kiosk.order') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                kiosk_id:    kioskId,
+                water_type:  selectedTemp,
+                volume_ml:   selectedVol,
+                voucher_code: voucherCode || undefined,
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.redirectUrl) {
+                window.location.href = data.redirectUrl;
+            } else {
+                const errMsg = data.message || data.errors?.kiosk_id?.[0] || 'Gagal membuat pesanan.';
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-qrcode text-lg"></i> <span>Bayar dengan AiYO QRIS</span> <i class="fa-solid fa-arrow-right text-sm"></i>';
+                const errBox = document.getElementById('order-error-box');
+                if (errBox) { errBox.querySelector('span').textContent = errMsg; errBox.classList.remove('hidden'); }
+                else { alert(errMsg); }
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-qrcode text-lg"></i> <span>Bayar dengan AiYO QRIS</span> <i class="fa-solid fa-arrow-right text-sm"></i>';
+            alert('Terjadi kesalahan jaringan. Silakan coba lagi.');
+        });
     }
 
     // Initialize UI on load

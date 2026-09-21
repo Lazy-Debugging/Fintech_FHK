@@ -264,6 +264,7 @@ class AiyoPaymentService
 
     /**
      * Memeriksa Status Pembayaran Invoice (Slide 27 & 28: cek.php)
+     * Mendukung invoice accessToken maupun OAuth Bearer Token sebagai fallback.
      */
     public function checkInvoiceStatus(string $invoiceId, string $invoiceAccessToken): array
     {
@@ -280,22 +281,67 @@ class AiyoPaymentService
         }
 
         $pathInvoice = '/api/v1/invoice';
-        $url = $this->host . $pathInvoice . '/' . $invoiceId . '?accessToken=' . urlencode($invoiceAccessToken);
 
+        // Coba 1: Invoice access token via query param (metode utama)
+        if (!empty($invoiceAccessToken)) {
+            $url = $this->host . $pathInvoice . '/' . $invoiceId . '?accessToken=' . urlencode($invoiceAccessToken);
+            $result = $this->_doGetInvoice($url);
+            if ($result !== null) {
+                return $result;
+            }
+        }
+
+        // Coba 2: OAuth Bearer token sebagai fallback (ketika invoice access token kosong/tidak valid)
+        $oauthToken = $this->getAccessToken();
+        if ($oauthToken) {
+            $url = $this->host . $pathInvoice . '/' . $invoiceId;
+            $result = $this->_doGetInvoice($url, $oauthToken);
+            if ($result !== null) {
+                return $result;
+            }
+        }
+
+        // Coba 3: Upstream cek.php di live server sebagai terakhir
+        $upstreamResult = $this->checkInvoiceStatusViaUpstream($invoiceId, $invoiceAccessToken);
+        if ($upstreamResult !== null) {
+            return $upstreamResult;
+        }
+
+        return [
+            'success' => false,
+            'status'  => 'UNKNOWN',
+            'isPaid'  => false,
+            'message' => 'Gagal memeriksa status invoice dari semua sumber'
+        ];
+    }
+
+    /**
+     * Helper internal: GET invoice dan parse hasilnya.
+     * Mengembalikan null jika gagal/tidak ada data valid.
+     */
+    private function _doGetInvoice(string $url, ?string $bearerToken = null): ?array
+    {
         try {
+            $headers = ['Accept: application/json'];
+            if ($bearerToken) {
+                $headers[] = 'Authorization: Bearer ' . $bearerToken;
+            }
+
             $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 12);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
             curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
             $responseBody = curl_exec($ch);
             curl_close($ch);
 
             $result = json_decode($responseBody, true);
 
-            if (isset($result['responseData'])) {
+            if (isset($result['responseData']) && is_array($result['responseData'])) {
                 $resData = $result['responseData'];
-                $status = $resData['invoiceStatus'] ?? 'PENDING';
-
+                $status  = $resData['invoiceStatus'] ?? 'PENDING';
                 return [
                     'success'       => true,
                     'status'        => $status,
@@ -307,22 +353,48 @@ class AiyoPaymentService
                     'raw'           => $resData
                 ];
             }
-
-            return [
-                'success' => false,
-                'status'  => 'UNKNOWN',
-                'isPaid'  => false,
-                'message' => $result['responseMessage'] ?? 'Gagal memeriksa status ke AiYO'
-            ];
+            return null;
         } catch (\Throwable $e) {
-            Log::error('AiYO checkInvoiceStatus exception', ['message' => $e->getMessage()]);
-            return [
-                'success' => false,
-                'status'  => 'ERROR',
-                'isPaid'  => false,
-                'message' => $e->getMessage()
-            ];
+            Log::warning('AiYO _doGetInvoice failed', ['url' => $url, 'error' => $e->getMessage()]);
+            return null;
         }
+    }
+
+    /**
+     * Fallback: Cek status via upstream live server (cek.php) jika IP lokal tidak di-whitelist.
+     */
+    private function checkInvoiceStatusViaUpstream(string $invoiceId, string $invoiceAccessToken): ?array
+    {
+        $upstreamUrls = [
+            'https://app.mesinbayar.com/fhk/cek.php',
+            'https://mesinbayar.com/app/fhk/cek.php',
+        ];
+        foreach ($upstreamUrls as $upUrl) {
+            try {
+                $url = $upUrl . '?invoiceId=' . urlencode($invoiceId) . '&accessToken=' . urlencode($invoiceAccessToken) . '&format=json';
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+                $res = curl_exec($ch);
+                curl_close($ch);
+                $json = json_decode($res, true);
+                if ($json && isset($json['invoiceStatus'])) {
+                    $status = $json['invoiceStatus'];
+                    return [
+                        'success'  => true,
+                        'status'   => $status,
+                        'isPaid'   => in_array(strtoupper($status), ['PAID', 'SUCCESS', 'SETTLED', 'COMPLETED']),
+                        'payAmount'=> $json['payAmount'] ?? 0,
+                        'raw'      => $json
+                    ];
+                }
+            } catch (\Throwable $e) {
+                Log::warning('AiYO upstream cek.php failed: ' . $e->getMessage());
+            }
+        }
+        return null;
     }
 
     public function getCallbackUrl(): string

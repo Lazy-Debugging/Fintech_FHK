@@ -59,12 +59,24 @@ class OrderController extends Controller
             ], 400);
         }
 
-        // Hitung nominal harga:
+        // Matriks Harga Resmi FHK (Persis dengan Tampilan UI Kios):
         // Normal: Rp 1.500 / 250ml, Rp 2.500 / 500ml, Rp 4.500 / 1000ml
         // Cold:   Rp 2.000 / 250ml, Rp 3.500 / 500ml, Rp 6.000 / 1000ml
-        $ratePerMl = ($validated['water_type'] === 'COLD') ? 6.0 : 4.5;
-        $calculatedAmount = (int) round(($validated['volume_ml'] * $ratePerMl) / 500) * 500;
-        $originalAmount = max(1000, $calculatedAmount);
+        $priceMatrix = [
+            'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ],
+            'NORMAL' => [ 250 => 1500, 500 => 2500, 1000 => 4500 ],
+        ];
+
+        $waterTypeKey = strtoupper($validated['water_type']);
+        $volumeMlVal  = (int) $validated['volume_ml'];
+
+        if (isset($priceMatrix[$waterTypeKey][$volumeMlVal])) {
+            $originalAmount = $priceMatrix[$waterTypeKey][$volumeMlVal];
+        } else {
+            $ratePerMl = ($waterTypeKey === 'COLD') ? 6.0 : 4.5;
+            $calculatedAmount = (int) round(($volumeMlVal * $ratePerMl) / 500) * 500;
+            $originalAmount = max(1000, $calculatedAmount);
+        }
         $payAmount = $originalAmount;
         $voucher = null;
         if ($request->filled('voucher_code')) {
@@ -76,6 +88,19 @@ class OrderController extends Controller
             $payAmount = max(0, $originalAmount - min($discount, $originalAmount));
         }
 
+        // Penentuan Identitas Pelanggan (User vs Guest)
+        $user = $request->user();
+        if ($user) {
+            $customerName = $user->name;
+            $customerEmail = $user->email;
+            $customerPhone = $user->phone ?? '081234567890';
+        } else {
+            $guestId = substr($request->session()->get('guest_order_id', md5(microtime())), 0, 6);
+            $customerName = "Pengunjung Tamu (#{$guestId})";
+            $customerEmail = "tamu.{$guestId}@fhk.id";
+            $customerPhone = "0812-GUEST-FHK";
+        }
+
         $referenceId = 'FHK' . date('ymdHis') . rand(10, 99);
 
         // Panggil AiYO Service untuk create invoice
@@ -85,9 +110,9 @@ class OrderController extends Controller
             'waterType'   => $validated['water_type'],
             'volumeMl'    => $validated['volume_ml'],
             'payAmount'   => $payAmount,
-            'userName'    => $validated['user_name'] ?? 'Pengunjung Kios',
-            'userEmail'   => $validated['user_email'] ?? 'customer@fhk.id',
-            'userPhone'   => $validated['user_phone'] ?? '0812000000',
+            'userName'    => $customerName,
+            'userEmail'   => $customerEmail,
+            'userPhone'   => $customerPhone,
         ]);
 
         if (!$invoiceResult['success']) {
@@ -105,12 +130,12 @@ class OrderController extends Controller
             'invoiceId'          => $invoiceId,
             'referenceId'        => $referenceId,
             'kiosk_id'           => $kiosk->id,
-            'user_id'            => $request->user()?->id,
-            'guest_token'        => $request->user() ? null : ($request->hasSession() ? $request->session()->get('guest_order_id') : null),
+            'user_id'            => $user?->id,
+            'guest_token'        => $user ? null : ($request->hasSession() ? $request->session()->get('guest_order_id') : null),
             'voucher_id'         => $voucher?->id,
-            'userName'           => $validated['user_name'] ?? 'Pengunjung Kios',
-            'userEmail'          => $validated['user_email'] ?? 'customer@fhk.id',
-            'userPhone'          => $validated['user_phone'] ?? '0812000000',
+            'userName'           => $customerName,
+            'userEmail'          => $customerEmail,
+            'userPhone'          => $customerPhone,
             'water_type'         => $validated['water_type'],
             'volume_ml'          => $validated['volume_ml'],
             'payAmount'          => $payAmount,
@@ -123,16 +148,13 @@ class OrderController extends Controller
             'qr_content'         => $invoiceResult['qrContent'] ?? $invoiceResult['invoiceUrl'],
             'invoice_url'        => $invoiceResult['invoiceUrl'],
         ]);
-        if ($voucher) { VoucherRedemption::create(['voucher_id' => $voucher->id, 'user_id' => $request->user()->id, 'invoice_id' => $invoiceId]); $voucher->increment('usage_count'); }
+        if ($voucher && $user) { VoucherRedemption::create(['voucher_id' => $voucher->id, 'user_id' => $user->id, 'invoice_id' => $invoiceId]); $voucher->increment('usage_count'); }
 
-        // Redirect langsung 100% ke URL resmi AiYO Bills Invoice Gateway
-        $redirectUrl = (!empty($invoiceResult['invoiceUrl']) && str_contains($invoiceResult['invoiceUrl'], 'aiyo.id'))
-            ? $invoiceResult['invoiceUrl']
-            : "https://bills-invoice.aiyo.id/bills/invoice/{$invoiceId}?accessToken=" . urlencode($aiyoAccessToken);
+        // Gunakan Route Internal Halaman QRIS Website FHK (In-App QRIS Payment)
+        $redirectUrl = route('kiosk.qris', ['invoiceId' => $invoiceId]);
 
-        // Jika request dari form submission biasa, redirect browser langsung ke gateway AiYO
         if (!$request->expectsJson() && !$request->ajax()) {
-            return redirect()->away($redirectUrl);
+            return redirect()->to($redirectUrl);
         }
 
         return response()->json([
@@ -170,9 +192,16 @@ class OrderController extends Controller
             ]);
         }
 
-        // Cek status ke API AiYO jika memiliki accessToken
-        if (!empty($transaksi->aiyo_access_token) && !str_starts_with($transaksi->aiyo_access_token, 'mock_')) {
-            $statusRes = $this->aiyoService->checkInvoiceStatus($transaksi->invoiceId, $transaksi->aiyo_access_token);
+        // Cek status ke API AiYO — selalu coba, bahkan jika token kosong.
+        // Service sudah menangani fallback via OAuth Bearer token dan upstream server.
+        $invoiceToken = $transaksi->aiyo_access_token ?? '';
+        if (!str_starts_with($invoiceToken, 'mock_dev_')) {
+            $statusRes = $this->aiyoService->checkInvoiceStatus($transaksi->invoiceId, $invoiceToken);
+            Log::info('checkPaymentStatus poll', [
+                'invoiceId' => $transaksi->invoiceId,
+                'token_empty' => empty($invoiceToken),
+                'result' => $statusRes
+            ]);
             if ($statusRes['success'] && $statusRes['isPaid']) {
                 $transaksi->update(['status' => 'PAID']); $this->preparePickup($transaksi);
                 return response()->json([
@@ -180,6 +209,15 @@ class OrderController extends Controller
                     'status'        => 'PAID',
                     'isPaid'        => true,
                     'nextActionUrl' => route('orders.collect', ['invoiceId' => $invoiceId])
+                ]);
+            }
+            // Perbarui status jika AiYO mengembalikan EXPIRED / CANCELLED
+            if ($statusRes['success'] && in_array(strtoupper($statusRes['status'] ?? ''), ['EXPIRED', 'CANCELLED', 'FAILED'])) {
+                $transaksi->update(['status' => strtoupper($statusRes['status'])]);
+                return response()->json([
+                    'success' => true,
+                    'status'  => strtoupper($statusRes['status']),
+                    'isPaid'  => false
                 ]);
             }
         }
@@ -208,6 +246,111 @@ class OrderController extends Controller
             'status'        => 'PAID',
             'message'       => 'Pembayaran AiYO QRIS disimulasikan berhasil.',
             'nextActionUrl' => route('kiosk.dispensing', ['invoiceId' => $invoiceId])
+        ]);
+    }
+
+    /**
+     * Membatalkan transaksi PENDING
+     */
+    public function cancelOrder(Request $request, string $invoiceId)
+    {
+        $transaksi = Transaksi::findOrFail($invoiceId);
+        
+        $user = $request->user();
+        $guestToken = $request->session()->get('guest_order_id');
+        $isOwner = ($user && $transaksi->user_id === $user->id) || (!$user && $transaksi->guest_token === $guestToken);
+        
+        if (!$isOwner) {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses ke transaksi ini.'], 403);
+            }
+            return redirect()->back()->with('error', 'Anda tidak memiliki akses ke transaksi ini.');
+        }
+
+        if ($transaksi->status !== 'PENDING') {
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Transaksi tidak dapat dibatalkan.'], 400);
+            }
+            return redirect()->back()->with('error', 'Transaksi tidak dapat dibatalkan.');
+        }
+
+        $transaksi->update(['status' => 'CANCELLED']);
+
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true, 'message' => 'Transaksi berhasil dibatalkan.']);
+        }
+
+        return redirect()->back()->with('success', 'Transaksi berhasil dibatalkan.');
+    }
+
+    /**
+     * Memproses scan QR Kios dari Kamera HP pelanggan untuk memicu penuangan air
+     */
+    public function redeemScan(Request $request, string $invoiceId): JsonResponse
+    {
+        $request->validate([
+            'kiosk_qr' => 'required|string',
+        ]);
+
+        $transaksi = Transaksi::findOrFail($invoiceId);
+
+        if (!in_array($transaksi->status, ['PAID', 'AWAITING_KIOSK_SCAN'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transaksi belum dibayar atau sudah pernah digunakan.'
+            ], 400);
+        }
+
+        $scannedQr = trim($request->string('kiosk_qr'));
+        $kioskId = $scannedQr;
+        if (str_contains($scannedQr, ':')) {
+            $parts = explode(':', $scannedQr);
+            $kioskId = $parts[1] ?? $scannedQr;
+        }
+
+        $kiosk = Kiosk::find($kioskId) ?? Kiosk::first();
+
+        if (!$kiosk) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kios tidak ditemukan di sistem.'
+            ], 404);
+        }
+
+        $transaksi->update([
+            'status'   => 'DISPENSING',
+            'kiosk_id' => $kiosk->id,
+            'remarks'  => trim(($transaksi->remarks ?? '') . " | Redeemed via HP QR Scan pada Kios {$kiosk->id} " . date('H:i:s'))
+        ]);
+
+        return response()->json([
+            'success'       => true,
+            'message'       => 'Penuangan air berhasil dipicu di Kios ' . $kiosk->name . '!',
+            'kiosk_name'    => $kiosk->name,
+            'nextActionUrl' => route('kiosk.dispensing', ['invoiceId' => $invoiceId])
+        ]);
+    }
+
+    /**
+     * Polling oleh Layar Kios untuk mengecek apakah ada transaksi redeem baru dari HP
+     */
+    public function pollDispense(string $kioskId): JsonResponse
+    {
+        $transaksi = Transaksi::where('kiosk_id', $kioskId)
+            ->whereIn('status', ['DISPENSING', 'QUEUED'])
+            ->latest('updated_at')
+            ->first();
+
+        if ($transaksi) {
+            return response()->json([
+                'dispensing'  => true,
+                'invoiceId'   => $transaksi->invoiceId,
+                'redirectUrl' => route('kiosk.dispensing', ['invoiceId' => $transaksi->invoiceId])
+            ]);
+        }
+
+        return response()->json([
+            'dispensing' => false
         ]);
     }
 

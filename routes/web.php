@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\PricingController;
 use App\Http\Controllers\Admin\VoucherController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Kiosk\KioskScreenController;
@@ -31,6 +32,8 @@ Route::post('/login/admin', [AuthController::class, 'adminLogin'])->name('login.
 Route::post('/continue-as-guest', [AuthController::class, 'guest'])->name('login.guest');
 Route::get('/auth/google', [AuthController::class, 'redirectToGoogle'])->name('google.redirect');
 Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback'])->name('google.callback');
+Route::get('/index.php/auth/google/callback', [AuthController::class, 'handleGoogleCallback']);
+Route::get('/fhk/index.php/auth/google/callback', [AuthController::class, 'handleGoogleCallback']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/orders/{invoiceId}/collect', [MobileOrderController::class, 'collect'])->name('orders.collect');
 
@@ -91,6 +94,20 @@ Route::post('/api/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::cl
 Route::post('/app/fhk/api/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
 Route::post('/fhk/api/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
 Route::get('/api/kiosk/payment-status/{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
+Route::get('/fhk/api/kiosk/payment-status/{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
+Route::get('/app/fhk/api/kiosk/payment-status/{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
+
+Route::match(['get', 'post'], '/orders/{invoiceId}/cancel', [\App\Http\Controllers\Kiosk\OrderController::class, 'cancelOrder'])->name('orders.cancel');
+Route::match(['get', 'post'], '/fhk/orders/{invoiceId}/cancel', [\App\Http\Controllers\Kiosk\OrderController::class, 'cancelOrder']);
+Route::match(['get', 'post'], '/app/fhk/orders/{invoiceId}/cancel', [\App\Http\Controllers\Kiosk\OrderController::class, 'cancelOrder']);
+
+Route::match(['get', 'post'], '/orders/{invoiceId}/redeem-scan', [\App\Http\Controllers\Kiosk\OrderController::class, 'redeemScan'])->name('orders.redeem_scan');
+Route::match(['get', 'post'], '/fhk/orders/{invoiceId}/redeem-scan', [\App\Http\Controllers\Kiosk\OrderController::class, 'redeemScan']);
+Route::match(['get', 'post'], '/app/fhk/orders/{invoiceId}/redeem-scan', [\App\Http\Controllers\Kiosk\OrderController::class, 'redeemScan']);
+
+Route::get('/api/kiosk/{kioskId}/poll-dispense', [\App\Http\Controllers\Kiosk\OrderController::class, 'pollDispense'])->name('api.kiosk.poll_dispense');
+Route::get('/fhk/api/kiosk/{kioskId}/poll-dispense', [\App\Http\Controllers\Kiosk\OrderController::class, 'pollDispense']);
+Route::get('/app/fhk/api/kiosk/{kioskId}/poll-dispense', [\App\Http\Controllers\Kiosk\OrderController::class, 'pollDispense']);
 
 // AiYO Bills Invoice Gateway Callback Webhook (Target: https://mesinbayar.com/app/fhk/callback/)
 Route::match(['get', 'post'], '/app/fhk/callback', [AiyoCallbackController::class, 'handleCallback'])->name('aiyo.callback');
@@ -111,6 +128,15 @@ Route::match(['get', 'post'], '/app/fhk/respon.php', function () {
 Route::match(['get', 'post'], '/fhk/respon.php', function () {
     require base_path('respon.php');
 });
+Route::match(['get', 'post'], '/index.php/respon.php', function () {
+    require base_path('respon.php');
+});
+Route::match(['get', 'post'], '/fhk/index.php/respon.php', function () {
+    require base_path('respon.php');
+});
+Route::match(['get', 'post'], '/app/fhk/index.php/respon.php', function () {
+    require base_path('respon.php');
+});
 
 Route::match(['get', 'post'], '/token.php', function () {
     require base_path('token.php');
@@ -119,6 +145,12 @@ Route::match(['get', 'post'], '/app/fhk/token.php', function () {
     require base_path('token.php');
 });
 Route::match(['get', 'post'], '/fhk/token.php', function () {
+    require base_path('token.php');
+});
+Route::match(['get', 'post'], '/index.php/token.php', function () {
+    require base_path('token.php');
+});
+Route::match(['get', 'post'], '/fhk/index.php/token.php', function () {
     require base_path('token.php');
 });
 
@@ -130,6 +162,28 @@ Route::match(['get', 'post'], '/app/fhk/cek.php', function () {
 });
 Route::match(['get', 'post'], '/fhk/cek.php', function () {
     require base_path('cek.php');
+});
+Route::match(['get', 'post'], '/index.php/cek.php', function () {
+    require base_path('cek.php');
+});
+Route::match(['get', 'post'], '/fhk/index.php/cek.php', function () {
+    require base_path('cek.php');
+});
+
+Route::match(['get', 'post'], '/migrate.php', function () {
+    require base_path('migrate.php');
+});
+Route::match(['get', 'post'], '/app/fhk/migrate.php', function () {
+    require base_path('migrate.php');
+});
+Route::match(['get', 'post'], '/fhk/migrate.php', function () {
+    require base_path('migrate.php');
+});
+Route::match(['get', 'post'], '/index.php/migrate.php', function () {
+    require base_path('migrate.php');
+});
+Route::match(['get', 'post'], '/fhk/index.php/migrate.php', function () {
+    require base_path('migrate.php');
 });
 
 
@@ -143,4 +197,7 @@ Route::prefix('admin')->as('admin.')->middleware(['auth', 'admin'])->group(funct
     Route::get('/vouchers', [VoucherController::class, 'index'])->name('vouchers.index');
     Route::post('/vouchers', [VoucherController::class, 'store'])->name('vouchers.store');
     Route::patch('/vouchers/{voucher}', [VoucherController::class, 'update'])->name('vouchers.update');
+    Route::get('/pricing', [PricingController::class, 'index'])->name('pricing.index');
+    Route::post('/pricing', [PricingController::class, 'update'])->name('pricing.update');
+    Route::post('/pricing/reset', [PricingController::class, 'resetToGlobal'])->name('pricing.reset');
 });
