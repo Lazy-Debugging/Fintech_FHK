@@ -51,6 +51,8 @@ class Transaksi extends Model
         'dispense_started_at' => 'datetime',
         'dispense_completed_at' => 'datetime',
         'timestamp' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
         'redemption_expires_at' => 'datetime',
         'redeemed_at' => 'datetime',
     ];

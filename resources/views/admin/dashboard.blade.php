@@ -276,7 +276,7 @@
                         @forelse($recentTransactions as $tx)
                         <tr>
                             <td class="py-3 text-cyan-400 font-bold">{{ $tx->referenceId }}</td>
-                            <td class="py-3 font-sans text-slate-400">{{ $tx->created_at->format('H:i:s') }}</td>
+                            <td class="py-3 font-sans text-slate-400">{{ ($tx->created_at ?? $tx->timestamp)?->format('H:i:s') ?? '-' }}</td>
                             <td class="py-3 font-sans">
                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ $tx->water_type === 'COLD' ? 'bg-cyan-950 text-cyan-300' : 'bg-emerald-950 text-emerald-300' }}">
                                     {{ $tx->water_type }}

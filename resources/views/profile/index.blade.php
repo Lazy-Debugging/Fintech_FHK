@@ -55,7 +55,7 @@
                             Refill {{ $tx->water_type ?? 'Air' }} {{ $tx->volume_ml }}ml
                         </div>
                         <div class="text-[11px] text-slate-500 font-mono mt-1">
-                            ID: {{ $tx->invoiceId }} &middot; {{ $tx->created_at->format('d M Y, H:i') }}
+                            ID: {{ $tx->invoiceId }} &middot; {{ ($tx->created_at ?? $tx->timestamp)?->format('d M Y, H:i') ?? '-' }}
                         </div>
                     </div>
                     

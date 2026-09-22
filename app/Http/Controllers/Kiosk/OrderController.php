@@ -59,23 +59,17 @@ class OrderController extends Controller
             ], 400);
         }
 
-        // Matriks Harga Resmi FHK (Persis dengan Tampilan UI Kios):
-        // Normal: Rp 1.500 / 250ml, Rp 2.500 / 500ml, Rp 4.500 / 1000ml
-        // Cold:   Rp 2.000 / 250ml, Rp 3.500 / 500ml, Rp 6.000 / 1000ml
-        $priceMatrix = [
-            'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ],
-            'NORMAL' => [ 250 => 1500, 500 => 2500, 1000 => 4500 ],
-        ];
-
         $waterTypeKey = strtoupper($validated['water_type']);
         $volumeMlVal  = (int) $validated['volume_ml'];
 
-        if (isset($priceMatrix[$waterTypeKey][$volumeMlVal])) {
-            $originalAmount = $priceMatrix[$waterTypeKey][$volumeMlVal];
+        if (class_exists(\App\Models\KioskPricing::class)) {
+            $originalAmount = \App\Models\KioskPricing::getPrice($waterTypeKey, $volumeMlVal, $kiosk->id);
         } else {
-            $ratePerMl = ($waterTypeKey === 'COLD') ? 6.0 : 4.5;
-            $calculatedAmount = (int) round(($volumeMlVal * $ratePerMl) / 500) * 500;
-            $originalAmount = max(1000, $calculatedAmount);
+            $priceMatrix = [
+                'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ],
+                'NORMAL' => [ 250 => 1500, 500 => 2500, 1000 => 4500 ],
+            ];
+            $originalAmount = $priceMatrix[$waterTypeKey][$volumeMlVal] ?? 3500;
         }
         $payAmount = $originalAmount;
         $voucher = null;

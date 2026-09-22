@@ -42,7 +42,7 @@
                 </div>
                 <div class="flex flex-col min-[420px]:flex-row min-[420px]:justify-between gap-1">
                     <span class="text-slate-500">Waktu Pembayaran:</span>
-                    <span>{{ $transaksi->created_at->format('d M Y, H:i:s') }} WIB</span>
+                    <span>{{ ($transaksi->created_at ?? $transaksi->timestamp)?->format('d M Y, H:i:s') ?? '-' }} WIB</span>
                 </div>
                 <div class="flex flex-col min-[420px]:flex-row min-[420px]:justify-between gap-1">
                     <span class="text-slate-500">Lokasi Kios:</span>
