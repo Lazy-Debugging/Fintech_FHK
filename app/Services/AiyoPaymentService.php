@@ -340,12 +340,20 @@ class AiyoPaymentService
             $result = json_decode($responseBody, true);
 
             if (isset($result['responseData']) && is_array($result['responseData'])) {
-                $resData = $result['responseData'];
-                $status  = $resData['invoiceStatus'] ?? 'PENDING';
+                $resData     = $result['responseData'];
+                $status      = $resData['invoiceStatus'] ?? $resData['status'] ?? $resData['paymentStatus'] ?? 'PENDING';
+                $paidAmount  = (int) ($resData['paidAmount'] ?? $resData['payAmount'] ?? 0);
+                $isPaidFlag  = !empty($resData['isPaid']);
+                $statusUpper = strtoupper($status);
+
+                $isPaid = in_array($statusUpper, ['PAID', 'SUCCESS', 'SETTLED', 'COMPLETED', 'PAYMENT_SUCCESS', 'SUCCEEDED', 'PAID_SETTLED'])
+                        || $isPaidFlag
+                        || ($paidAmount > 0 && !in_array($statusUpper, ['EXPIRED', 'CANCELLED', 'FAILED']));
+
                 return [
                     'success'       => true,
-                    'status'        => $status,
-                    'isPaid'        => in_array(strtoupper($status), ['PAID', 'SUCCESS', 'SETTLED', 'COMPLETED']),
+                    'status'        => $isPaid ? 'PAID' : $statusUpper,
+                    'isPaid'        => $isPaid,
                     'invoiceName'   => $resData['invoiceName'] ?? '',
                     'payAmount'     => $resData['payAmount'] ?? 0,
                     'invoiceURL'    => $resData['invoiceURL'] ?? null,
@@ -380,12 +388,14 @@ class AiyoPaymentService
                 $res = curl_exec($ch);
                 curl_close($ch);
                 $json = json_decode($res, true);
-                if ($json && isset($json['invoiceStatus'])) {
-                    $status = $json['invoiceStatus'];
+                if ($json && (isset($json['invoiceStatus']) || isset($json['isPaid']))) {
+                    $status = $json['invoiceStatus'] ?? $json['status'] ?? 'PENDING';
+                    $statusUpper = strtoupper($status);
+                    $isPaid = !empty($json['isPaid']) || in_array($statusUpper, ['PAID', 'SUCCESS', 'SETTLED', 'COMPLETED', 'PAYMENT_SUCCESS', 'SUCCEEDED', 'PAID_SETTLED']);
                     return [
                         'success'  => true,
-                        'status'   => $status,
-                        'isPaid'   => in_array(strtoupper($status), ['PAID', 'SUCCESS', 'SETTLED', 'COMPLETED']),
+                        'status'   => $isPaid ? 'PAID' : $statusUpper,
+                        'isPaid'   => $isPaid,
                         'payAmount'=> $json['payAmount'] ?? 0,
                         'raw'      => $json
                     ];

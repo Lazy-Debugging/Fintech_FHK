@@ -13,6 +13,31 @@ class ProfileController extends Controller
         $user = $request->user();
         $guestToken = $request->session()->get('guest_order_id');
 
+        // Auto-sync status transaksi PENDING ke AiYO Gateway saat profil dibuka
+        $pendingTxs = Transaksi::where('status', 'PENDING')
+            ->when($user, fn ($query) => $query->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id)
+                  ->orWhere('userEmail', $user->email);
+            }))
+            ->when(! $user, fn ($query) => $query->whereNull('user_id')->where('guest_token', $guestToken))
+            ->limit(5)
+            ->get();
+
+        if ($pendingTxs->isNotEmpty()) {
+            $aiyoService = app(\App\Services\AiyoPaymentService::class);
+            foreach ($pendingTxs as $tx) {
+                $token = $tx->aiyo_access_token ?? '';
+                if (!str_starts_with($token, 'mock_')) {
+                    $res = $aiyoService->checkInvoiceStatus($tx->invoiceId, $token);
+                    if ($res['success'] && $res['isPaid']) {
+                        $tx->update(['status' => 'PAID']);
+                    } elseif ($res['success'] && in_array(strtoupper($res['status'] ?? ''), ['EXPIRED', 'CANCELLED', 'FAILED'])) {
+                        $tx->update(['status' => strtoupper($res['status'])]);
+                    }
+                }
+            }
+        }
+
         $transactions = Transaksi::with('kiosk')
             ->when($user, fn ($query) => $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)
