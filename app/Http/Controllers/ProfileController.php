@@ -10,37 +10,46 @@ class ProfileController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
+        $user = $request->user() ?? (function_exists('auth') ? auth()->user() : null);
         $guestToken = $request->session()->get('guest_order_id');
 
         if ($user) {
-            // Auto-tautkan transaksi tanpa user_id yang memiliki userEmail atau guest_token sama
+            // Auto-tautkan transaksi tanpa user_id yang memiliki userEmail, guest_token, atau userName sama
             Transaksi::whereNull('user_id')
                 ->where(function ($q) use ($user, $guestToken) {
                     $q->where('userEmail', $user->email);
                     if ($guestToken) {
                         $q->orWhere('guest_token', $guestToken);
                     }
+                    // Juga match berdasarkan userName yang mengandung nama user
+                    $q->orWhere('userName', 'like', '%' . $user->name . '%');
                 })
                 ->update(['user_id' => $user->id]);
         }
 
         // Auto-sync status transaksi PENDING / NEW / UNPAID ke AiYO Gateway saat profil dibuka
+        // Query lebih agresif: cari transaksi milik user ATAU milik guest_token yang sama
         $pendingTxs = Transaksi::whereIn('status', ['PENDING', 'NEW', 'UNPAID'])
-            ->when($user, fn ($query) => $query->where(function ($q) use ($user, $guestToken) {
-                $q->where('user_id', $user->id)
-                  ->orWhere('userEmail', $user->email);
-                if ($guestToken) {
-                    $q->orWhere('guest_token', $guestToken);
+            ->where(function ($query) use ($user, $guestToken) {
+                if ($user) {
+                    $query->where('user_id', $user->id)
+                          ->orWhere('userEmail', $user->email);
                 }
-            }))
-            ->when(! $user, fn ($query) => $query->whereNull('user_id')->where('guest_token', $guestToken))
+                if ($guestToken) {
+                    $query->orWhere('guest_token', $guestToken);
+                }
+            })
             ->limit(10)
             ->get();
 
         if ($pendingTxs->isNotEmpty()) {
             $aiyoService = app(\App\Services\AiyoPaymentService::class);
             foreach ($pendingTxs as $tx) {
+                // Auto-link user_id jika belum terisi dan user sudah login
+                if ($user && !$tx->user_id) {
+                    $tx->update(['user_id' => $user->id]);
+                }
+
                 $token = $tx->aiyo_access_token ?? '';
                 if (!str_starts_with($token, 'mock_')) {
                     $res = $aiyoService->checkInvoiceStatus($tx->invoiceId, $token);
@@ -57,15 +66,21 @@ class ProfileController extends Controller
         $sortFilter   = $request->query('sort', 'latest');
         $searchFilter = trim($request->query('search', ''));
 
+        // Query utama — lebih inklusif: gabungkan user_id, userEmail, DAN guest_token
         $transactionsQuery = Transaksi::with('kiosk')
-            ->when($user, fn ($query) => $query->where(function ($q) use ($user, $guestToken) {
-                $q->where('user_id', $user->id)
-                  ->orWhere('userEmail', $user->email);
-                if ($guestToken) {
-                    $q->orWhere('guest_token', $guestToken);
+            ->where(function ($query) use ($user, $guestToken) {
+                if ($user) {
+                    $query->where('user_id', $user->id)
+                          ->orWhere('userEmail', $user->email);
                 }
-            }))
-            ->when(! $user, fn ($query) => $query->whereNull('user_id')->where('guest_token', $guestToken));
+                if ($guestToken) {
+                    $query->orWhere('guest_token', $guestToken);
+                }
+                // Jika tidak ada user dan tidak ada guestToken, jangan tampilkan apa-apa
+                if (!$user && !$guestToken) {
+                    $query->whereRaw('1 = 0');
+                }
+            });
 
         // Filter Status
         if ($statusFilter !== 'all') {

@@ -18,9 +18,14 @@ $priceMatrix = [
 $wtUpper = strtoupper($waterType);
 $kioskIdInput = $_POST['kiosk_id'] ?? $_GET['kiosk_id'] ?? null;
 
-if (class_exists(\App\Models\KioskPricing::class)) {
-    $calculatedPrice = \App\Models\KioskPricing::getPrice($wtUpper, $volumeMl, $kioskIdInput);
-} else {
+// Harga dari database (KioskPricing) dengan fallback ke hardcoded matrix
+try {
+    if (class_exists(\App\Models\KioskPricing::class)) {
+        $calculatedPrice = \App\Models\KioskPricing::getPrice($wtUpper, $volumeMl, $kioskIdInput);
+    } else {
+        $calculatedPrice = $priceMatrix[$wtUpper][$volumeMl] ?? 3500;
+    }
+} catch (\Throwable $e) {
     $calculatedPrice = $priceMatrix[$wtUpper][$volumeMl] ?? 3500;
 }
 

@@ -130,16 +130,15 @@ class AiyoCallbackController extends Controller
         $isPaid = false;
         if ($status && in_array(strtoupper($status), ['PAID', 'SUCCESS', 'SETTLED', 'COMPLETED'])) {
             $isPaid = true;
-        } else {
-            // Jika status tidak tertera eksplisit, verifikasi ke API AiYO
+        } elseif ($status && !in_array(strtoupper($status), ['EXPIRED', 'CANCELLED', 'FAILED', 'PENDING', 'UNPAID', 'NEW'])) {
+            // Status tidak dikenal — verifikasi ke API AiYO jika token tersedia
             if (!empty($transaksi->aiyo_access_token) && !str_starts_with($transaksi->aiyo_access_token, 'mock_')) {
                 $statusCheck = $this->aiyoService->checkInvoiceStatus($transaksi->invoiceId, $transaksi->aiyo_access_token);
                 if ($statusCheck['success'] && $statusCheck['isPaid']) {
                     $isPaid = true;
                 }
-            } else {
-                $isPaid = true;
             }
+            // Jika tidak ada token valid, JANGAN anggap sudah bayar — biarkan PENDING
         }
 
         if ($isPaid) {

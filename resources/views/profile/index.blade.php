@@ -87,7 +87,12 @@
                             Refill {{ $tx->water_type ?? 'Air' }} {{ $tx->volume_ml }}ml
                         </div>
                         <div class="text-[11px] text-slate-500 font-mono mt-1">
-                            ID: {{ $tx->invoiceId }} &middot; {{ ($tx->created_at ?? $tx->timestamp)?->format('d M Y, H:i') ?? '-' }}
+                            ID: @if(in_array($tx->status, ['PENDING', 'NEW', 'UNPAID']))
+                                <a href="{{ route('kiosk.qris', ['invoiceId' => $tx->invoiceId]) }}" class="text-cyan-400 underline hover:text-cyan-300 font-bold">{{ $tx->invoiceId }}</a>
+                            @else
+                                {{ $tx->invoiceId }}
+                            @endif
+                            &middot; {{ ($tx->created_at ?? $tx->timestamp)?->format('d M Y, H:i') ?? '-' }}
                         </div>
                     </div>
                     
@@ -130,13 +135,8 @@
                             </button>
                         </form>
 
-                        <!-- Tombol Bayar Sekarang -->
-                        @php
-                            $payUrl = (!empty($tx->invoice_url) && str_contains($tx->invoice_url, 'aiyo.id'))
-                                ? $tx->invoice_url
-                                : route('kiosk.qris', ['invoiceId' => $tx->invoiceId]);
-                        @endphp
-                        <a href="{{ $payUrl }}" target="_blank" class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-extrabold shadow-lg shadow-amber-500/20 transition flex items-center gap-1.5">
+                        <!-- Tombol Bayar Sekarang (Redirect ke Halaman Transaksi Gambar 2) -->
+                        <a href="{{ route('kiosk.qris', ['invoiceId' => $tx->invoiceId]) }}" class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs font-extrabold shadow-lg shadow-amber-500/20 transition flex items-center gap-1.5">
                             <i class="fa-solid fa-qrcode"></i> Bayar Sekarang &rarr;
                         </a>
                     @elseif(in_array($tx->status, ['PAID', 'AWAITING_KIOSK_SCAN']))

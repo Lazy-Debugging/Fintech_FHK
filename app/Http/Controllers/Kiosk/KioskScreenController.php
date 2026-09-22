@@ -33,7 +33,11 @@ class KioskScreenController extends Controller
             ]
         );
 
-        $priceMatrix = \App\Models\KioskPricing::getPriceMatrix($kiosk->id);
+        try {
+            $priceMatrix = \App\Models\KioskPricing::getPriceMatrix($kiosk->id);
+        } catch (\Throwable $e) {
+            $priceMatrix = \App\Models\KioskPricing::defaultMatrix();
+        }
 
         return view('kiosk.index', compact('kiosk', 'priceMatrix'));
     }

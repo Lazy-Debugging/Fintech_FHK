@@ -62,15 +62,26 @@ class OrderController extends Controller
         $waterTypeKey = strtoupper($validated['water_type']);
         $volumeMlVal  = (int) $validated['volume_ml'];
 
-        if (class_exists(\App\Models\KioskPricing::class)) {
-            $originalAmount = \App\Models\KioskPricing::getPrice($waterTypeKey, $volumeMlVal, $kiosk->id);
-        } else {
+        // Harga dari database dengan fallback ke hardcoded (mencegah crash jika tabel belum migrasi)
+        try {
+            if (class_exists(\App\Models\KioskPricing::class)) {
+                $originalAmount = \App\Models\KioskPricing::getPrice($waterTypeKey, $volumeMlVal, $kiosk->id);
+            } else {
+                $priceMatrix = [
+                    'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ],
+                    'NORMAL' => [ 250 => 1500, 500 => 2500, 1000 => 4500 ],
+                ];
+                $originalAmount = $priceMatrix[$waterTypeKey][$volumeMlVal] ?? 3500;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('OrderController: KioskPricing fallback', ['error' => $e->getMessage()]);
             $priceMatrix = [
                 'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ],
                 'NORMAL' => [ 250 => 1500, 500 => 2500, 1000 => 4500 ],
             ];
             $originalAmount = $priceMatrix[$waterTypeKey][$volumeMlVal] ?? 3500;
         }
+
         $payAmount = $originalAmount;
         $voucher = null;
         if ($request->filled('voucher_code')) {
@@ -82,8 +93,8 @@ class OrderController extends Controller
             $payAmount = max(0, $originalAmount - min($discount, $originalAmount));
         }
 
-        // Penentuan Identitas Pelanggan (User vs Guest)
-        $user = $request->user();
+        // Penentuan Identitas Pelanggan (User vs Guest) — dengan fallback auth() yang lebih agresif
+        $user = $request->user() ?? (function_exists('auth') ? auth()->user() : null);
         $guestToken = $request->hasSession() ? $request->session()->get('guest_order_id') : null;
 
         if ($user) {
@@ -97,6 +108,15 @@ class OrderController extends Controller
             $customerPhone = "";
         }
 
+        Log::info('OrderController createOrder identity', [
+            'user_id' => $user?->id,
+            'user_name' => $customerName,
+            'guest_token' => $guestToken,
+            'is_authenticated' => !is_null($user),
+            'payAmount' => $payAmount,
+            'originalAmount' => $originalAmount,
+        ]);
+
         $referenceId = 'FHK' . date('ymdHis') . rand(10, 99);
 
         // Panggil AiYO Service untuk create invoice
@@ -105,7 +125,7 @@ class OrderController extends Controller
             'kioskName'   => $kiosk->name,
             'waterType'   => $validated['water_type'],
             'volumeMl'    => $validated['volume_ml'],
-            'payAmount'   => max(1000, $payAmount),
+            'payAmount'   => $payAmount,
             'userName'    => $customerName,
             'userEmail'   => $customerEmail,
             'userPhone'   => $customerPhone,
@@ -120,6 +140,7 @@ class OrderController extends Controller
 
         $invoiceId = $invoiceResult['invoiceId'];
         $aiyoAccessToken = $invoiceResult['accessToken'];
+        $actualPayAmount = (int) ($invoiceResult['payAmount'] ?? $payAmount);
 
         // Simpan data transaksi ke database
         $transaksi = Transaksi::create([
@@ -134,7 +155,7 @@ class OrderController extends Controller
             'userPhone'          => $customerPhone,
             'water_type'         => $validated['water_type'],
             'volume_ml'          => $validated['volume_ml'],
-            'payAmount'          => $payAmount,
+            'payAmount'          => $actualPayAmount,
             'original_amount'    => $originalAmount,
             'discount_amount'    => $originalAmount - $payAmount,
             'aiyo_access_token'  => $aiyoAccessToken,

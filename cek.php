@@ -42,14 +42,17 @@ if ($cekInvoice && isset($cekInvoice->responseData)) {
     $status      = isset($resData->invoiceStatus) ? $resData->invoiceStatus : (isset($resData->status) ? $resData->status : (isset($resData->paymentStatus) ? $resData->paymentStatus : '-'));
     $invoiceName = isset($resData->invoiceName) ? $resData->invoiceName : '-';
     $payAmount   = isset($resData->payAmount) ? $resData->payAmount : 0;
-    $paidAmount  = isset($resData->paidAmount) ? $resData->paidAmount : $payAmount;
+    // PENTING: paidAmount hanya dari field paidAmount asli, BUKAN fallback ke payAmount
+    // payAmount = jumlah yang HARUS dibayar (selalu > 0)
+    // paidAmount = jumlah yang SUDAH dibayar (0 jika belum bayar)
+    $paidAmount  = isset($resData->paidAmount) ? (int) $resData->paidAmount : 0;
     $invoiceURL  = isset($resData->invoiceURL) ? $resData->invoiceURL : '#';
     $isPaidFlag  = !empty($resData->isPaid);
     $statusUpper = strtoupper((string)$status);
 
     $isPaid = in_array($statusUpper, ['PAID', 'COMPLETED', 'SETTLED', 'SUCCESS', 'PAYMENT_SUCCESS', 'SUCCEEDED', 'PAID_SETTLED'])
               || $isPaidFlag
-              || ($paidAmount > 0 && !in_array($statusUpper, ['EXPIRED', 'CANCELLED', 'FAILED']));
+              || ($paidAmount > 0 && in_array($statusUpper, ['PAID', 'SUCCESS', 'SETTLED', 'COMPLETED']));
 
     if ($isPaid) {
         // Update database

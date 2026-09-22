@@ -25,22 +25,7 @@
     </div>
     @endif
 
-    <!-- Form Submit Tersembunyi (Langsung ke respon.php -> Redirect ke AiYO Gateway) -->
-    <form id="kiosk-order-form" method="POST" action="{{ url('respon.php') }}" class="hidden">
-        @csrf
-        <input type="hidden" name="kiosk_id" value="{{ $kiosk->id }}">
-        <input type="hidden" name="water_type" id="form-water-type" value="COLD">
-        <input type="hidden" name="volume_ml" id="form-volume-ml" value="500">
-        <input type="hidden" name="payAmount" id="form-pay-amount" value="3500">
-        <input type="hidden" name="redirect" value="1">
-        <input type="hidden" name="user_name" value="{{ auth()->user()?->name ?? 'Pengunjung Kios FHK' }}">
-        <input type="hidden" name="userName" value="{{ auth()->user()?->name ?? 'Pengunjung Kios FHK' }}">
-        <input type="hidden" name="user_email" value="{{ auth()->user()?->email ?? 'customer@fhk.id' }}">
-        <input type="hidden" name="userEmail" value="{{ auth()->user()?->email ?? 'customer@fhk.id' }}">
-        <input type="hidden" name="user_phone" value="0812000000">
-        <input type="hidden" name="userPhone" value="0812000000">
-        <input type="hidden" name="voucher_code" id="form-voucher-code" value="">
-    </form>
+    {{-- Order sekarang diproses via fetch() JS ke OrderController@createOrder --}}
 
     <!-- Main Selection Form Container -->
     <div class="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-8 space-y-6 sm:space-y-8 relative overflow-hidden">

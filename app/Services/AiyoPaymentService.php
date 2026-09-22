@@ -113,7 +113,7 @@ class AiyoPaymentService
         }
 
         $referenceId = $params['referenceId'] ?? ('FHK' . date('ymdHis') . rand(10, 99));
-        $payAmount   = max(1000, (int) ($params['payAmount'] ?? 2000));
+        $payAmount   = max(1, (int) ($params['payAmount'] ?? 2000));
         $waterType   = $params['waterType'] ?? 'COLD';
         $volumeMl    = (int) ($params['volumeMl'] ?? 500);
         $kioskName   = $params['kioskName'] ?? 'Fresh Hydration Kios';
@@ -236,7 +236,20 @@ class AiyoPaymentService
 
             $jsonUp = json_decode($resUp, true);
             if ($jsonUp && !empty($jsonUp['success']) && !empty($jsonUp['invoiceId'])) {
-                Log::info("AiYO createInvoice: Berhasil melalui upstream respon.php!", ['invoiceId' => $jsonUp['invoiceId']]);
+                // Validasi: log jika harga upstream berbeda dari harga lokal
+                $upstreamAmount = (int) ($jsonUp['payAmount'] ?? 0);
+                if ($upstreamAmount > 0 && $upstreamAmount !== $payAmount) {
+                    Log::warning('AiYO upstream payAmount MISMATCH!', [
+                        'local_payAmount' => $payAmount,
+                        'upstream_payAmount' => $upstreamAmount,
+                        'invoiceId' => $jsonUp['invoiceId'],
+                    ]);
+                }
+                Log::info("AiYO createInvoice: Berhasil melalui upstream respon.php!", [
+                    'invoiceId' => $jsonUp['invoiceId'],
+                    'local_payAmount' => $payAmount,
+                    'upstream_payAmount' => $upstreamAmount,
+                ]);
                 return [
                     'success'           => true,
                     'invoiceId'         => $jsonUp['invoiceId'],
@@ -342,13 +355,24 @@ class AiyoPaymentService
             if (isset($result['responseData']) && is_array($result['responseData'])) {
                 $resData     = $result['responseData'];
                 $status      = $resData['invoiceStatus'] ?? $resData['status'] ?? $resData['paymentStatus'] ?? 'PENDING';
-                $paidAmount  = (int) ($resData['paidAmount'] ?? $resData['payAmount'] ?? 0);
                 $isPaidFlag  = !empty($resData['isPaid']);
                 $statusUpper = strtoupper($status);
 
+                // PENTING: Hanya gunakan field paidAmount yang ASLI (bukan payAmount!)
+                // payAmount = jumlah yang HARUS dibayar (selalu > 0)
+                // paidAmount = jumlah yang SUDAH dibayar (0 jika belum bayar)
+                $paidAmount  = isset($resData['paidAmount']) ? (int) $resData['paidAmount'] : 0;
+
                 $isPaid = in_array($statusUpper, ['PAID', 'SUCCESS', 'SETTLED', 'COMPLETED', 'PAYMENT_SUCCESS', 'SUCCEEDED', 'PAID_SETTLED'])
                         || $isPaidFlag
-                        || ($paidAmount > 0 && !in_array($statusUpper, ['EXPIRED', 'CANCELLED', 'FAILED']));
+                        || ($paidAmount > 0 && in_array($statusUpper, ['PAID', 'SUCCESS', 'SETTLED', 'COMPLETED']));
+
+                Log::debug('AiYO _doGetInvoice status check', [
+                    'status' => $statusUpper,
+                    'paidAmount' => $paidAmount,
+                    'isPaidFlag' => $isPaidFlag,
+                    'isPaid_result' => $isPaid,
+                ]);
 
                 return [
                     'success'       => true,
