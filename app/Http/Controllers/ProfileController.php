@@ -13,14 +13,17 @@ class ProfileController extends Controller
         $user = $request->user();
         $guestToken = $request->session()->get('guest_order_id');
 
-        // Auto-sync status transaksi PENDING ke AiYO Gateway saat profil dibuka
-        $pendingTxs = Transaksi::where('status', 'PENDING')
-            ->when($user, fn ($query) => $query->where(function ($q) use ($user) {
+        // Auto-sync status transaksi PENDING / NEW / UNPAID ke AiYO Gateway saat profil dibuka
+        $pendingTxs = Transaksi::whereIn('status', ['PENDING', 'NEW', 'UNPAID'])
+            ->when($user, fn ($query) => $query->where(function ($q) use ($user, $guestToken) {
                 $q->where('user_id', $user->id)
                   ->orWhere('userEmail', $user->email);
+                if ($guestToken) {
+                    $q->orWhere('guest_token', $guestToken);
+                }
             }))
             ->when(! $user, fn ($query) => $query->whereNull('user_id')->where('guest_token', $guestToken))
-            ->limit(5)
+            ->limit(10)
             ->get();
 
         if ($pendingTxs->isNotEmpty()) {
@@ -43,15 +46,20 @@ class ProfileController extends Controller
         $searchFilter = trim($request->query('search', ''));
 
         $transactionsQuery = Transaksi::with('kiosk')
-            ->when($user, fn ($query) => $query->where(function ($q) use ($user) {
+            ->when($user, fn ($query) => $query->where(function ($q) use ($user, $guestToken) {
                 $q->where('user_id', $user->id)
                   ->orWhere('userEmail', $user->email);
+                if ($guestToken) {
+                    $q->orWhere('guest_token', $guestToken);
+                }
             }))
             ->when(! $user, fn ($query) => $query->whereNull('user_id')->where('guest_token', $guestToken));
 
         // Filter Status
         if ($statusFilter !== 'all') {
-            if ($statusFilter === 'PAID') {
+            if (in_array($statusFilter, ['PENDING', 'NEW', 'UNPAID'])) {
+                $transactionsQuery->whereIn('status', ['PENDING', 'NEW', 'UNPAID']);
+            } elseif ($statusFilter === 'PAID') {
                 $transactionsQuery->whereIn('status', ['PAID', 'AWAITING_KIOSK_SCAN']);
             } elseif ($statusFilter === 'COMPLETED') {
                 $transactionsQuery->whereIn('status', ['COMPLETED', 'DISPENSING']);

@@ -95,7 +95,7 @@
                         <div class="text-base font-black text-white">Rp {{ number_format($tx->payAmount, 0, ',', '.') }}</div>
                         
                         <!-- Status Badges -->
-                        @if($tx->status === 'PENDING')
+                        @if(in_array($tx->status, ['PENDING', 'NEW', 'UNPAID']))
                             <span class="inline-block mt-1 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300">
                                 ⏳ BELUM DIBAYAR
                             </span>
@@ -121,7 +121,7 @@
 
                 <!-- Tombol Aksi Berdasarkan Status -->
                 <div class="pt-2 border-t border-slate-800/60 flex items-center justify-end gap-2 flex-wrap">
-                    @if($tx->status === 'PENDING')
+                    @if(in_array($tx->status, ['PENDING', 'NEW', 'UNPAID']))
                         <!-- Tombol Batalkan -->
                         <form action="{{ route('orders.cancel', $tx->invoiceId) }}" method="POST" onsubmit="return confirm('Yakin ingin membatalkan transaksi ini?')">
                             @csrf
