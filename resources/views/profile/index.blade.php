@@ -44,6 +44,38 @@
             <span class="text-xs text-slate-500">Klik 'Redeem' di Kios saat air siap</span>
         </div>
 
+        <!-- Filter, Sort & Search Control Bar -->
+        <form method="GET" action="{{ route('profile') }}" class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/80">
+            <!-- Filter Status -->
+            <div class="relative">
+                <select name="status" onchange="this.form.submit()" class="w-full bg-slate-900 border border-slate-700/80 text-white text-xs rounded-xl px-3 py-2 font-semibold focus:border-cyan-400 focus:outline-none appearance-none cursor-pointer pr-8">
+                    <option value="all" {{ request('status', 'all') === 'all' ? 'selected' : '' }}>📌 Semua Status</option>
+                    <option value="PENDING" {{ request('status') === 'PENDING' ? 'selected' : '' }}>⏳ Belum Dibayar</option>
+                    <option value="PAID" {{ request('status') === 'PAID' ? 'selected' : '' }}>✅ Sudah Dibayar (Siap Scan)</option>
+                    <option value="COMPLETED" {{ request('status') === 'COMPLETED' ? 'selected' : '' }}>💧 Selesai Nuang Air</option>
+                    <option value="CANCELLED" {{ request('status') === 'CANCELLED' ? 'selected' : '' }}>❌ Batal / Expired</option>
+                </select>
+                <i class="fa-solid fa-chevron-down absolute right-3 top-3 text-[10px] text-slate-400 pointer-events-none"></i>
+            </div>
+
+            <!-- Urutan (Sort) -->
+            <div class="relative">
+                <select name="sort" onchange="this.form.submit()" class="w-full bg-slate-900 border border-slate-700/80 text-white text-xs rounded-xl px-3 py-2 font-semibold focus:border-cyan-400 focus:outline-none appearance-none cursor-pointer pr-8">
+                    <option value="latest" {{ request('sort', 'latest') === 'latest' ? 'selected' : '' }}>🕒 Terbaru Pertama</option>
+                    <option value="oldest" {{ request('sort') === 'oldest' ? 'selected' : '' }}>⌛ Terlama Pertama</option>
+                    <option value="amount_high" {{ request('sort') === 'amount_high' ? 'selected' : '' }}>💰 Nominal: Tertinggi</option>
+                    <option value="amount_low" {{ request('sort') === 'amount_low' ? 'selected' : '' }}>🪙 Nominal: Terendah</option>
+                </select>
+                <i class="fa-solid fa-chevron-down absolute right-3 top-3 text-[10px] text-slate-400 pointer-events-none"></i>
+            </div>
+
+            <!-- Search Input -->
+            <div class="relative">
+                <input type="text" name="search" value="{{ request('search') }}" placeholder="Cari ID Invoice / Air..." class="w-full bg-slate-900 border border-slate-700/80 text-white text-xs rounded-xl pl-8 pr-3 py-2 font-medium focus:border-cyan-400 focus:outline-none">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-slate-400"></i>
+            </div>
+        </form>
+
         @forelse($transactions as $tx)
             <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-3">
                 <div class="flex items-start justify-between gap-3">

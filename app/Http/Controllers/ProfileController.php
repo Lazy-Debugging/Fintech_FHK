@@ -38,14 +38,57 @@ class ProfileController extends Controller
             }
         }
 
-        $transactions = Transaksi::with('kiosk')
+        $statusFilter = $request->query('status', 'all');
+        $sortFilter   = $request->query('sort', 'latest');
+        $searchFilter = trim($request->query('search', ''));
+
+        $transactionsQuery = Transaksi::with('kiosk')
             ->when($user, fn ($query) => $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)
                   ->orWhere('userEmail', $user->email);
             }))
-            ->when(! $user, fn ($query) => $query->whereNull('user_id')->where('guest_token', $guestToken))
-            ->latest('created_at')
-            ->paginate(10);
+            ->when(! $user, fn ($query) => $query->whereNull('user_id')->where('guest_token', $guestToken));
+
+        // Filter Status
+        if ($statusFilter !== 'all') {
+            if ($statusFilter === 'PAID') {
+                $transactionsQuery->whereIn('status', ['PAID', 'AWAITING_KIOSK_SCAN']);
+            } elseif ($statusFilter === 'COMPLETED') {
+                $transactionsQuery->whereIn('status', ['COMPLETED', 'DISPENSING']);
+            } elseif ($statusFilter === 'CANCELLED') {
+                $transactionsQuery->whereIn('status', ['CANCELLED', 'EXPIRED', 'FAILED']);
+            } else {
+                $transactionsQuery->where('status', $statusFilter);
+            }
+        }
+
+        // Search Keyword
+        if (!empty($searchFilter)) {
+            $transactionsQuery->where(function ($q) use ($searchFilter) {
+                $q->where('invoiceId', 'like', "%{$searchFilter}%")
+                  ->orWhere('referenceId', 'like', "%{$searchFilter}%")
+                  ->orWhere('water_type', 'like', "%{$searchFilter}%");
+            });
+        }
+
+        // Sorting
+        switch ($sortFilter) {
+            case 'oldest':
+                $transactionsQuery->orderBy('created_at', 'asc')->orderBy('timestamp', 'asc');
+                break;
+            case 'amount_high':
+                $transactionsQuery->orderBy('payAmount', 'desc');
+                break;
+            case 'amount_low':
+                $transactionsQuery->orderBy('payAmount', 'asc');
+                break;
+            case 'latest':
+            default:
+                $transactionsQuery->orderBy('created_at', 'desc')->orderBy('timestamp', 'desc');
+                break;
+        }
+
+        $transactions = $transactionsQuery->paginate(10)->withQueryString();
 
         $vouchers = $user
             ? Voucher::query()
