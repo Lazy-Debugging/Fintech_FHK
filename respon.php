@@ -32,20 +32,22 @@ if ($payAmountInput !== null && is_numeric($payAmountInput)) {
 $referenceId = $_POST['referenceId'] ?? $_GET['referenceId'] ?? ('FHK' . date('ymdHis') . rand(10, 99));
 
 // Deteksi Akun Pelanggan (User vs Guest)
-$userName  = $_POST['userName'] ?? $_GET['userName'] ?? '';
-$userEmail = $_POST['userEmail'] ?? $_GET['userEmail'] ?? '';
-$userPhone = $_POST['userPhone'] ?? $_GET['userPhone'] ?? '';
+$userName   = $_POST['userName'] ?? $_GET['userName'] ?? '';
+$userEmail  = $_POST['userEmail'] ?? $_GET['userEmail'] ?? '';
+$userPhone  = $_POST['userPhone'] ?? $_GET['userPhone'] ?? '';
+$guestToken = $_SESSION['guest_order_id'] ?? $_COOKIE['guest_order_id'] ?? ($_REQUEST['guest_token'] ?? null);
+$userId     = null;
 
 if (function_exists('auth') && auth()->check()) {
     $u = auth()->user();
+    $userId = $u->id;
     if (empty($userName) || $userName === 'Pengunjung Kios') $userName = $u->name;
     if (empty($userEmail) || $userEmail === 'customer@fhk.id') $userEmail = $u->email;
-    if (empty($userPhone) || $userPhone === '0812000000') $userPhone = $u->phone ?? '081234567890';
+    if (empty($userPhone) || $userPhone === '0812000000') $userPhone = $u->phone ?? '';
 } else {
     $guestHash = substr(md5($referenceId), 0, 6);
-    if (empty($userName) || $userName === 'Pengunjung Kios') $userName = "Pengunjung Tamu FHK (#{$guestHash})";
-    if (empty($userEmail) || $userEmail === 'customer@fhk.id') $userEmail = "tamu.{$guestHash}@fhk.id";
-    if (empty($userPhone) || $userPhone === '0812000000') $userPhone = "0812-GUEST-FHK";
+    if (empty($userName)) $userName = "Pengunjung Tamu FHK (#{$guestHash})";
+    if (empty($userEmail)) $userEmail = "tamu.{$guestHash}@fhk.id";
 }
 
 $remarks     = $_POST['remarks'] ?? $_GET['remarks'] ?? "Refill Air {$waterType} {$volumeMl}ml";
@@ -155,9 +157,13 @@ if (!empty($invoiceId) && !empty($invoiceAccessToken)) {
         $itemsJson = json_encode($successfulBody['items']);
         $remarksClean = str_replace(array('\'', '"', ',', ';', '<', '>', '/'), ' ', $successfulBody['remarks']);
 
+        $userIdVal = $userId ? "'" . $conn->real_escape_string($userId) . "'" : "NULL";
+        $guestTokenVal = $guestToken ? "'" . $conn->real_escape_string($guestToken) . "'" : "NULL";
+        $kioskIdVal = !empty($kioskIdInput) ? "'" . $conn->real_escape_string($kioskIdInput) . "'" : "'FHK-JAKARTA-01'";
+
         if ($dbType === 'mysql') {
             $sql = "INSERT INTO `transaksi`
-                    (`referenceId`, `userName`, `userEmail`, `userPhone`, `remarks`, `payAmount`, `items`, `invoiceId`, `status`, `timestamp`)
+                    (`referenceId`, `userName`, `userEmail`, `userPhone`, `remarks`, `payAmount`, `items`, `invoiceId`, `status`, `water_type`, `volume_ml`, `kiosk_id`, `user_id`, `guest_token`, `aiyo_access_token`, `created_at`, `updated_at`, `timestamp`)
                     VALUES (
                         '" . $conn->real_escape_string($successfulBody['referenceId']) . "',
                         '" . $conn->real_escape_string($successfulBody['userName']) . "',
@@ -167,7 +173,15 @@ if (!empty($invoiceId) && !empty($invoiceAccessToken)) {
                         '" . $conn->real_escape_string($successfulBody['payAmount']) . "',
                         '" . $conn->real_escape_string($itemsJson) . "',
                         '" . $conn->real_escape_string($invoiceId) . "',
-                        'NEW',
+                        'PENDING',
+                        '" . $conn->real_escape_string($wtUpper) . "',
+                        " . ((int) $volumeMl) . ",
+                        {$kioskIdVal},
+                        {$userIdVal},
+                        {$guestTokenVal},
+                        '" . $conn->real_escape_string($invoiceAccessToken) . "',
+                        NOW(),
+                        NOW(),
                         current_timestamp()
                     )";
             $conn->query($sql);
@@ -175,8 +189,8 @@ if (!empty($invoiceId) && !empty($invoiceAccessToken)) {
         } elseif ($dbType === 'sqlite') {
             try {
                 $stmt = $conn->prepare("INSERT OR REPLACE INTO `transaksi`
-                    (`referenceId`, `userName`, `userEmail`, `userPhone`, `remarks`, `payAmount`, `items`, `invoiceId`, `status`, `created_at`, `updated_at`)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'NEW', datetime('now'), datetime('now'))");
+                    (`referenceId`, `userName`, `userEmail`, `userPhone`, `remarks`, `payAmount`, `items`, `invoiceId`, `status`, `water_type`, `volume_ml`, `kiosk_id`, `user_id`, `guest_token`, `aiyo_access_token`, `created_at`, `updated_at`)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))");
                 $stmt->execute([
                     $successfulBody['referenceId'],
                     $successfulBody['userName'],
@@ -185,7 +199,13 @@ if (!empty($invoiceId) && !empty($invoiceAccessToken)) {
                     $remarksClean,
                     $successfulBody['payAmount'],
                     $itemsJson,
-                    $invoiceId
+                    $invoiceId,
+                    $wtUpper,
+                    (int) $volumeMl,
+                    $kioskIdInput ?: 'FHK-JAKARTA-01',
+                    $userId,
+                    $guestToken,
+                    $invoiceAccessToken
                 ]);
             } catch (Exception $e) {}
         }

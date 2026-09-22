@@ -13,6 +13,18 @@ class ProfileController extends Controller
         $user = $request->user();
         $guestToken = $request->session()->get('guest_order_id');
 
+        if ($user) {
+            // Auto-tautkan transaksi tanpa user_id yang memiliki userEmail atau guest_token sama
+            Transaksi::whereNull('user_id')
+                ->where(function ($q) use ($user, $guestToken) {
+                    $q->where('userEmail', $user->email);
+                    if ($guestToken) {
+                        $q->orWhere('guest_token', $guestToken);
+                    }
+                })
+                ->update(['user_id' => $user->id]);
+        }
+
         // Auto-sync status transaksi PENDING / NEW / UNPAID ke AiYO Gateway saat profil dibuka
         $pendingTxs = Transaksi::whereIn('status', ['PENDING', 'NEW', 'UNPAID'])
             ->when($user, fn ($query) => $query->where(function ($q) use ($user, $guestToken) {

@@ -84,15 +84,17 @@ class OrderController extends Controller
 
         // Penentuan Identitas Pelanggan (User vs Guest)
         $user = $request->user();
+        $guestToken = $request->hasSession() ? $request->session()->get('guest_order_id') : null;
+
         if ($user) {
-            $customerName = $user->name;
+            $customerName  = $user->name;
             $customerEmail = $user->email;
-            $customerPhone = $user->phone ?? '081234567890';
+            $customerPhone = $user->phone ?? '';
         } else {
-            $guestId = substr($request->session()->get('guest_order_id', md5(microtime())), 0, 6);
-            $customerName = "Pengunjung Tamu (#{$guestId})";
+            $guestId = substr($guestToken ?? md5(microtime()), 0, 6);
+            $customerName  = "Pengunjung Tamu (#{$guestId})";
             $customerEmail = "tamu.{$guestId}@fhk.id";
-            $customerPhone = "0812-GUEST-FHK";
+            $customerPhone = "";
         }
 
         $referenceId = 'FHK' . date('ymdHis') . rand(10, 99);
@@ -125,7 +127,7 @@ class OrderController extends Controller
             'referenceId'        => $referenceId,
             'kiosk_id'           => $kiosk->id,
             'user_id'            => $user?->id,
-            'guest_token'        => $user ? null : ($request->hasSession() ? $request->session()->get('guest_order_id') : null),
+            'guest_token'        => $guestToken,
             'voucher_id'         => $voucher?->id,
             'userName'           => $customerName,
             'userEmail'          => $customerEmail,
