@@ -105,7 +105,7 @@ class OrderController extends Controller
             'kioskName'   => $kiosk->name,
             'waterType'   => $validated['water_type'],
             'volumeMl'    => $validated['volume_ml'],
-            'payAmount'   => $payAmount,
+            'payAmount'   => max(1000, $payAmount),
             'userName'    => $customerName,
             'userEmail'   => $customerEmail,
             'userPhone'   => $customerPhone,
@@ -115,7 +115,7 @@ class OrderController extends Controller
             if (!$request->expectsJson() && !$request->ajax()) {
                 return redirect()->back()->with('error', $invoiceResult['message'] ?? 'Gagal membuat tagihan di AiYO.');
             }
-            return response()->json(['success' => false, 'message' => $invoiceResult['message']], 502);
+            return response()->json(['success' => false, 'message' => $invoiceResult['message'] ?? 'Gagal membuat tagihan di AiYO.'], 400);
         }
 
         $invoiceId = $invoiceResult['invoiceId'];

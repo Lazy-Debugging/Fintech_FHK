@@ -241,9 +241,9 @@
     const kioskId = "{{ $kiosk->id }}";
 
     // Auto-polling Layar Kios: Cek apakah ada penuangan air yang dipicu dari Scan HP
-    const pollDispenseBaseUrl = "{{ url('api/kiosk/') }}";
+    const pollDispenseBaseUrl = "{{ url('api/kiosk') }}";
     setInterval(function() {
-        fetch(`${pollDispenseBaseUrl}${kioskId}/poll-dispense`)
+        fetch(`${pollDispenseBaseUrl}/${encodeURIComponent(kioskId)}/poll-dispense`)
             .then(res => res.json())
             .then(data => {
                 if (data.dispensing && data.redirectUrl) {

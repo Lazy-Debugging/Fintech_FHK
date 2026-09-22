@@ -113,7 +113,7 @@ class AiyoPaymentService
         }
 
         $referenceId = $params['referenceId'] ?? ('FHK' . date('ymdHis') . rand(10, 99));
-        $payAmount   = (int) ($params['payAmount'] ?? 2000);
+        $payAmount   = max(1000, (int) ($params['payAmount'] ?? 2000));
         $waterType   = $params['waterType'] ?? 'COLD';
         $volumeMl    = (int) ($params['volumeMl'] ?? 500);
         $kioskName   = $params['kioskName'] ?? 'Fresh Hydration Kios';
@@ -148,7 +148,7 @@ class AiyoPaymentService
                 'referenceId'   => $referenceId,
                 'userName'      => $params['userName'] ?? 'Pengunjung Kios',
                 'userEmail'     => $params['userEmail'] ?? 'customer@fhk.id',
-                'userPhone'     => $params['userPhone'] ?? '0812000000',
+                'userPhone'     => !empty($params['userPhone']) ? $params['userPhone'] : '081234567890',
                 'remarks'       => $params['remarks'] ?? "Refill Air {$waterType} {$volumeMl}ml",
                 'payAmount'     => $payAmount,
                 'expireTime'    => date('Y-m-d\TH:i', strtotime('+3 hour')),
