@@ -183,8 +183,13 @@
             <!-- Area Status Realtime -->
             <div class="space-y-3 pt-2">
                 <div id="payment-status-box" class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-center text-xs text-slate-400 font-semibold flex items-center justify-center gap-2.5">
-                    <i class="fa-solid fa-circle-notch fa-spin text-cyan-400 text-sm"></i> Memeriksa status pembayaran otomatis...
+                    <i class="fa-solid fa-circle-notch fa-spin text-cyan-400 text-sm"></i> <span>Memeriksa status pembayaran otomatis...</span>
                 </div>
+
+                <button type="button" onclick="manualCheckPayment(this)" id="btn-manual-check" class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs shadow-lg shadow-cyan-500/20 transition flex items-center justify-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>Saya Sudah Bayar (Periksa Status)</span>
+                </button>
 
                 @if(app()->environment(['local', 'testing']))
                 <button onclick="simulateDemoSuccess()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition flex items-center justify-center gap-2">
@@ -306,6 +311,48 @@
                 }
             })
             .catch(err => console.warn('[FHK] checkStatus error:', err));
+    }
+
+    // ─── Manual Check Status Pembayaran ───
+    function manualCheckPayment(btn) {
+        if (isRedirecting) return;
+        const originalText = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memeriksa status...';
+        }
+
+        const url = `${checkStatusBaseUrl}${encodeURIComponent(invoiceId)}`;
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.isPaid) {
+                    isRedirecting = true;
+                    clearInterval(pollInterval);
+                    const statusBox = document.getElementById('payment-status-box');
+                    if (statusBox) {
+                        statusBox.innerHTML = '<span class="text-emerald-400 font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-circle-check"></i> Pembayaran Berhasil Dikonfirmasi! Mengalihkan...</span>';
+                    }
+                    const overlay = document.getElementById('successOverlay');
+                    if (overlay) overlay.classList.remove('hidden');
+                    setTimeout(() => {
+                        window.location.href = data.nextActionUrl || "{{ route('profile') }}";
+                    }, 1000);
+                } else {
+                    alert('Pembayaran belum terkonfirmasi oleh Gateway AiYO. Jika baru saja transfer, mohon tunggu 5-10 detik lalu coba klik kembali.');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                    }
+                }
+            })
+            .catch(err => {
+                console.warn('[FHK] manualCheck error:', err);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            });
     }
 
     // ─── Demo Simulasi Pembayaran ───
