@@ -222,7 +222,7 @@
     const rawQrContent  = @json($transaksi->qr_content ?? $transaksi->invoice_url ?? $transaksi->invoiceId);
     const isRealQris    = {{ $isRealQris ? 'true' : 'false' }};
     // url() Laravel otomatis menghasilkan URL yang benar dengan prefix subfolder (e.g. /fhk/) di live server
-    const checkStatusBaseUrl = "{{ url('api/kiosk/payment-status/') }}";
+    const checkStatusBaseUrl = "{{ url('api/kiosk/payment-status') }}/";
     let timeLeft        = 900; // 15 menit
     let isRedirecting   = false;
 
@@ -271,7 +271,7 @@
     function checkStatus() {
         if (isRedirecting) return;
 
-        const url = checkStatusBaseUrl + encodeURIComponent(invoiceId);
+        const url = `${checkStatusBaseUrl}${encodeURIComponent(invoiceId)}`;
         fetch(url)
             .then(res => {
                 if (!res.ok) {
@@ -286,6 +286,11 @@
                     isRedirecting = true;
                     clearInterval(pollInterval);
 
+                    const statusBox = document.getElementById('payment-status-box');
+                    if (statusBox) {
+                        statusBox.innerHTML = '<span class="text-emerald-400 font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-circle-check"></i> Pembayaran Berhasil Dikonfirmasi! Mengalihkan...</span>';
+                    }
+
                     // Tampilkan overlay sukses
                     const overlay = document.getElementById('successOverlay');
                     if (overlay) overlay.classList.remove('hidden');
@@ -293,7 +298,7 @@
                     // Redirect ke halaman berikutnya
                     setTimeout(() => {
                         window.location.href = data.nextActionUrl || "{{ route('profile') }}";
-                    }, 1500);
+                    }, 1200);
                 } else if (data.status === 'EXPIRED' || data.status === 'CANCELLED' || data.status === 'FAILED') {
                     clearInterval(pollInterval);
                     const statusBox = document.getElementById('payment-status-box');

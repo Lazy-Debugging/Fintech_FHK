@@ -129,4 +129,43 @@ class FonnteService
             ];
         }
     }
+
+    /**
+     * Kirim pesan WhatsApp kustom langsung ke nomor target via Fonnte API
+     */
+    public static function sendMessage(string $target, string $message): array
+    {
+        $token = config('services.fonnte.token', env('FONNTE_TOKEN', 'uyb4wurTrdytqeCvg7tu'));
+        if (empty($token)) {
+            Log::warning('Fonnte sendMessage skipped: FONNTE_TOKEN is empty');
+            return ['status' => false, 'reason' => 'FONNTE_TOKEN is empty'];
+        }
+
+        $cleanTarget = preg_replace('/[^0-9]/', '', $target);
+        if (empty($cleanTarget)) {
+            return ['status' => false, 'reason' => 'Target number is empty'];
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => $token,
+            ])->asForm()->post('https://api.fonnte.com/send', [
+                'target'      => $cleanTarget,
+                'message'     => $message,
+                'countryCode' => '62',
+            ]);
+
+            $json = $response->json();
+            return [
+                'status'   => $response->successful() && ($json['status'] ?? false),
+                'response' => $json,
+            ];
+        } catch (\Throwable $e) {
+            Log::error('Fonnte sendMessage exception: ' . $e->getMessage(), ['target' => $cleanTarget]);
+            return [
+                'status' => false,
+                'error'  => $e->getMessage(),
+            ];
+        }
+    }
 }
