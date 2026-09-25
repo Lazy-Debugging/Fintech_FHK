@@ -72,6 +72,26 @@ if ($pdo) {
         } else {
             $steps[] = ['info', 'ℹ️', "Tabel 'kiosk_pricing' sudah berisi {$count} baris data."];
         }
+        // Cek dan tambahkan kolom 'phone' pada tabel 'users' jika belum ada
+        try {
+            $hasPhone = false;
+            $cols = $pdo->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($cols as $col) {
+                if ($col['name'] === 'phone') {
+                    $hasPhone = true;
+                    break;
+                }
+            }
+            if (!$hasPhone) {
+                $pdo->exec("ALTER TABLE users ADD COLUMN phone VARCHAR(30) NULL");
+                $steps[] = ['ok', '✅', "Kolom 'phone' berhasil ditambahkan ke tabel 'users'."];
+            } else {
+                $steps[] = ['info', 'ℹ️', "Kolom 'phone' pada tabel 'users' sudah tersedia."];
+            }
+        } catch (\Throwable $e) {
+            $steps[] = ['warn', '⚠️', "Info kolom 'phone': " . $e->getMessage()];
+        }
+
         $dbSuccess = true;
     } catch (\Throwable $e) {
         $steps[] = ['err', '❌', 'Error saat mengeksekusi SQL: ' . $e->getMessage()];

@@ -62,7 +62,18 @@ echo "<h1>🗄️ Migration Runner</h1><p class='sub'>Tabel <code>kiosk_pricing<
 $steps = [];
 $hasError = false;
 
-// ─── STEP 1: Cek apakah tabel sudah ada ────────────────────
+// ─── STEP 1: Cek apakah tabel & kolom sudah ada ───────────
+if (Schema::hasTable('users') && !Schema::hasColumn('users', 'phone')) {
+    try {
+        Schema::table('users', function ($table) {
+            $table->string('phone', 30)->nullable()->after('email');
+        });
+        $steps[] = ['ok', '✅', "Kolom <code>phone</code> berhasil ditambahkan ke tabel <code>users</code>."];
+    } catch (\Throwable $e) {
+        $steps[] = ['warn', '⚠️', "Gagal menambah kolom phone: <code>" . htmlspecialchars($e->getMessage()) . "</code>"];
+    }
+}
+
 if (Schema::hasTable('kiosk_pricing')) {
     $count = DB::table('kiosk_pricing')->count();
     $steps[] = ['skip', '⏭️', "Tabel <code>kiosk_pricing</code> sudah ada ({$count} data). Migrasi di-skip."];
