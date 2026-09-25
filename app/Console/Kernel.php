@@ -12,7 +12,9 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        //
+        $schedule->call(function () {
+            \App\Services\EmailNotificationService::checkAndExpireUnpaidTransactions(3);
+        })->everyMinute();
     }
 
     /**

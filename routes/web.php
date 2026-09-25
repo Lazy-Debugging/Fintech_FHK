@@ -188,7 +188,7 @@ Route::match(['get', 'post'], '/fhk/index.php/migrate.php', function () {
 
 
 // Area administrasi terpisah dari dashboard publik.
-Route::prefix('admin')->as('admin.')->middleware(['auth', 'admin'])->group(function () {
+$adminRoutes = function () {
     Route::redirect('/', '/admin/dashboard')->name('home');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/trigger-uv/{kioskId}', [DashboardController::class, 'triggerUvSterilization'])->name('trigger_uv');
@@ -200,4 +200,9 @@ Route::prefix('admin')->as('admin.')->middleware(['auth', 'admin'])->group(funct
     Route::get('/pricing', [PricingController::class, 'index'])->name('pricing.index');
     Route::post('/pricing', [PricingController::class, 'update'])->name('pricing.update');
     Route::post('/pricing/reset', [PricingController::class, 'resetToGlobal'])->name('pricing.reset');
-});
+};
+
+Route::prefix('admin')->as('admin.')->middleware(['auth', 'admin'])->group($adminRoutes);
+Route::prefix('fhk/admin')->middleware(['auth', 'admin'])->group($adminRoutes);
+Route::prefix('app/fhk/admin')->middleware(['auth', 'admin'])->group($adminRoutes);
+

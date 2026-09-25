@@ -316,6 +316,8 @@
                 water_type:  selectedTemp,
                 volume_ml:   selectedVol,
                 voucher_code: voucherCode || undefined,
+                user_email:  "{{ auth()->user()->email ?? '' }}",
+                user_name:   "{{ auth()->user()->name ?? '' }}",
             })
         })
         .then(res => res.json())

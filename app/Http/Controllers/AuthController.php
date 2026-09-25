@@ -60,6 +60,11 @@ class AuthController extends Controller
             return redirect()->route('login')->withErrors([
                 'google' => 'Sesi login Google kedaluwarsa. Silakan coba lagi dari halaman login.',
             ]);
+        } catch (\Throwable $e) {
+            Log::error('Google OAuth error: ' . $e->getMessage());
+            return redirect()->route('login')->withErrors([
+                'google' => 'Gagal autentikasi dengan Google: ' . $e->getMessage(),
+            ]);
         }
 
         $user = User::firstOrNew(['google_id' => $googleUser->getId()]);

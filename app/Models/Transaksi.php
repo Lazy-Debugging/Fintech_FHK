@@ -57,6 +57,37 @@ class Transaksi extends Model
         'redeemed_at' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        static::updated(function (Transaksi $transaksi) {
+            if ($transaksi->wasChanged('status')) {
+                $newStatus = strtoupper((string) $transaksi->status);
+                $oldStatus = strtoupper((string) $transaksi->getOriginal('status'));
+
+                // Kirim notifikasi WhatsApp & Email saat status berpindah menjadi Lunas (PAID / AWAITING_KIOSK_SCAN)
+                if (in_array($newStatus, ['PAID', 'AWAITING_KIOSK_SCAN'], true) 
+                    && !in_array($oldStatus, ['PAID', 'AWAITING_KIOSK_SCAN', 'DISPENSING', 'COMPLETED'], true)) {
+                    \App\Services\FonnteService::sendPaymentNotification($transaksi);
+                    \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+                }
+
+                // Kirim notifikasi Email saat tagihan tidak terbayar dan kedaluwarsa (EXPIRED / CANCELLED)
+                if (in_array($newStatus, ['EXPIRED', 'CANCELLED'], true) 
+                    && in_array($oldStatus, ['PENDING', 'NEW', 'UNPAID'], true)) {
+                    \App\Services\EmailNotificationService::sendUnpaidExpiredEmail($transaksi);
+                }
+            }
+        });
+
+        static::created(function (Transaksi $transaksi) {
+            $status = strtoupper((string) $transaksi->status);
+            if (in_array($status, ['PAID', 'AWAITING_KIOSK_SCAN'], true)) {
+                \App\Services\FonnteService::sendPaymentNotification($transaksi);
+                \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+            }
+        });
+    }
+
     public function kiosk(): BelongsTo
     {
         return $this->belongsTo(Kiosk::class, 'kiosk_id', 'id');

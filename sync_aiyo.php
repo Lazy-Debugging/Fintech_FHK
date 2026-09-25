@@ -10,6 +10,7 @@ $filesToSync = [
     "respon.php",
     "token.php",
     "cek.php",
+    "callback.php",
     "db_config.php",
     "public/sw.js",
     "routes/web.php",
@@ -18,8 +19,17 @@ $filesToSync = [
     "resources/views/layouts/kiosk_layout.blade.php",
     "app/Http/Controllers/Kiosk/OrderController.php",
     "app/Http/Controllers/Kiosk/KioskScreenController.php",
+    "app/Http/Controllers/Payment/AiyoCallbackController.php",
+    "app/Http/Controllers/AuthController.php",
     "app/Http/Middleware/VerifyCsrfToken.php",
-    "app/Services/AiyoPaymentService.php"
+    "app/Services/AiyoPaymentService.php",
+    "app/Services/EmailNotificationService.php",
+    "app/Services/FonnteService.php",
+    "app/Models/Transaksi.php",
+    "app/Models/KioskPricing.php",
+    "app/Http/Controllers/Admin/PricingController.php",
+    "resources/views/admin/pricing.blade.php",
+    "config/services.php"
 ];
 
 $results = [];

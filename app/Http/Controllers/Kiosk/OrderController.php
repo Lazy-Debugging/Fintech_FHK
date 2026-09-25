@@ -97,10 +97,19 @@ class OrderController extends Controller
         $user = $request->user() ?? (function_exists('auth') ? auth()->user() : null);
         $guestToken = $request->hasSession() ? $request->session()->get('guest_order_id') : null;
 
+        $inputEmail = trim((string) $request->input('user_email', ''));
+        $inputName  = trim((string) $request->input('user_name', ''));
+
         if ($user) {
             $customerName  = $user->name;
             $customerEmail = $user->email;
             $customerPhone = $user->phone ?? '';
+        } elseif (!empty($inputEmail) && filter_var($inputEmail, FILTER_VALIDATE_EMAIL)) {
+            $matchedUser = \App\Models\User::where('email', $inputEmail)->first();
+            $user = $matchedUser;
+            $customerName  = !empty($inputName) ? $inputName : ($matchedUser?->name ?? 'Pengguna FHK');
+            $customerEmail = $inputEmail;
+            $customerPhone = $matchedUser?->phone ?? '';
         } else {
             $guestId = substr($guestToken ?? md5(microtime()), 0, 6);
             $customerName  = "Pengunjung Tamu (#{$guestId})";
@@ -237,6 +246,20 @@ class OrderController extends Controller
                     'isPaid'  => false
                 ]);
             }
+        }
+
+        // Batas waktu pembayaran 3 menit: jika lewat 3 menit belum lunas, otomatis EXPIRED
+        if ($transaksi->created_at && $transaksi->created_at->diffInSeconds(now()) >= 180 && in_array($transaksi->status, ['PENDING', 'NEW', 'UNPAID'])) {
+            $transaksi->update([
+                'status'  => 'EXPIRED',
+                'remarks' => trim(($transaksi->remarks ?? '') . ' | Batas waktu 3 menit pembayaran berakhir')
+            ]);
+            return response()->json([
+                'success' => true,
+                'status'  => 'EXPIRED',
+                'isPaid'  => false,
+                'message' => 'Waktu pembayaran telah berakhir (3 menit).'
+            ]);
         }
 
         return response()->json([

@@ -68,6 +68,21 @@ if ($cekInvoice && isset($cekInvoice->responseData)) {
                 } catch (\Exception $e) {}
             }
         }
+
+        // Kirim Notifikasi Email & WhatsApp jika berjalan di environment aplikasi
+        try {
+            if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+                require_once __DIR__ . '/vendor/autoload.php';
+                $app = require_once __DIR__ . '/bootstrap/app.php';
+                $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
+                $kernel->bootstrap();
+                $txModel = \App\Models\Transaksi::find($invoiceId);
+                if ($txModel) {
+                    \App\Services\FonnteService::sendPaymentNotification($txModel);
+                    \App\Services\EmailNotificationService::sendPaymentEmail($txModel);
+                }
+            }
+        } catch (\Throwable $e) {}
     }
 
     // ── JSON Output ──

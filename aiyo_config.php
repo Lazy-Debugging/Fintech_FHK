@@ -18,5 +18,5 @@ $api_key      = getenv('AIYO_API_KEY') ?: "key_SxcKMQ8cMbckjRMLvNCy1hNqUMGSo4";
 $api_secret   = getenv('AIYO_API_SECRET') ?: "secret_WU3Ba45FwWE9sDe4uxUarvM4P6KMB4";
 
 // URL Callback resmi yang didaftarkan untuk FHK (Slide 20)
-$callbackUrl  = "https://mesinbayar.com/app/fhk/callback/";
+$callbackUrl  = "https://app.mesinbayar.com/fhk/callback/";
 ?>

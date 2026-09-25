@@ -41,4 +41,9 @@ return [
         ],
     ],
 
+    'fonnte' => [
+        'token'  => env('FONNTE_TOKEN', 'uyb4wurTrdytqeCvg7tu'),
+        'target' => env('FONNTE_TARGET', ''),
+    ],
+
 ];
