@@ -9,11 +9,34 @@ use Illuminate\Support\Facades\Log;
 class FonnteService
 {
     /**
+     * Helper aman untuk membaca env/config tanpa error jika function env()/config() tidak terdefinisi
+     */
+    public static function getEnvValue(string $key, mixed $default = null): mixed
+    {
+        if (function_exists('config')) {
+            try {
+                $cVal = config('services.fonnte.' . strtolower(str_replace('FONNTE_', '', $key)));
+                if ($cVal !== null) return $cVal;
+            } catch (\Throwable $e) {}
+        }
+        if (function_exists('env')) {
+            try {
+                $val = env($key);
+                if ($val !== null) return $val;
+            } catch (\Throwable $e) {}
+        }
+        if (isset($_ENV[$key])) return $_ENV[$key];
+        if (isset($_SERVER[$key])) return $_SERVER[$key];
+        $val = getenv($key);
+        return ($val !== false && $val !== '') ? $val : $default;
+    }
+
+    /**
      * Kirim notifikasi WhatsApp via Fonnte API untuk transaksi yang berhasil dibayar
      */
     public static function sendPaymentNotification(mixed $transaksi): array
     {
-        $token = config('services.fonnte.token', env('FONNTE_TOKEN', 'uyb4wurTrdytqeCvg7tu'));
+        $token = self::getEnvValue('FONNTE_TOKEN', 'uyb4wurTrdytqeCvg7tu');
         if (empty($token)) {
             Log::warning('Fonnte Notification skipped: FONNTE_TOKEN is empty');
             return ['status' => false, 'reason' => 'FONNTE_TOKEN is empty'];
@@ -77,7 +100,7 @@ class FonnteService
         }
 
         // 2. Nomor admin / target default dari konfigurasi .env jika diisi
-        $adminPhone = config('services.fonnte.target', env('FONNTE_TARGET', ''));
+        $adminPhone = self::getEnvValue('FONNTE_TARGET', '');
         if (!empty($adminPhone)) {
             $adminClean = preg_replace('/[^0-9]/', '', (string) $adminPhone);
             if (!empty($adminClean)) {
@@ -135,7 +158,7 @@ class FonnteService
      */
     public static function sendMessage(string $target, string $message): array
     {
-        $token = config('services.fonnte.token', env('FONNTE_TOKEN', 'uyb4wurTrdytqeCvg7tu'));
+        $token = self::getEnvValue('FONNTE_TOKEN', 'uyb4wurTrdytqeCvg7tu');
         if (empty($token)) {
             Log::warning('Fonnte sendMessage skipped: FONNTE_TOKEN is empty');
             return ['status' => false, 'reason' => 'FONNTE_TOKEN is empty'];
