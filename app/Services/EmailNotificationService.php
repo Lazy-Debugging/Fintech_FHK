@@ -51,7 +51,7 @@ class EmailNotificationService
     }
 
     /**
-     * Kirim email umum (dengan auto-fallback Port 587 TLS -> Port 465 SSL)
+     * Kirim email umum (dengan auto-fallback: PHPMailer TLS -> PHPMailer SSL -> Laravel Mail -> Native mail())
      */
     public static function sendEmail(string $to, string $subject, string $body, bool $isHtml = true): bool
     {
@@ -60,41 +60,64 @@ class EmailNotificationService
             return false;
         }
 
-        // Percobaan 1: Port 587 (TLS)
-        try {
-            $mail = self::createMailer(587, 'tls');
-            $mail->addAddress($to);
-            $mail->isHTML($isHtml);
-            $mail->Subject = $subject;
-            $mail->Body    = $body;
-
-            $mail->send();
-            Log::info('Email successfully sent via PHPMailer (Port 587 TLS)', ['to' => $to, 'subject' => $subject]);
-            return true;
-        } catch (\Throwable $e1) {
-            Log::warning('PHPMailer Port 587 failed, trying Port 465 SSL: ' . $e1->getMessage(), ['to' => $to]);
-            
-            // Percobaan 2: Port 465 (SSL) sebagai fallback firewall hosting
+        // Percobaan 1 & 2: PHPMailer jika library tersedia
+        if (class_exists(\PHPMailer\PHPMailer\PHPMailer::class)) {
             try {
-                $mail2 = self::createMailer(465, 'ssl');
-                $mail2->addAddress($to);
-                $mail2->isHTML($isHtml);
-                $mail2->Subject = $subject;
-                $mail2->Body    = $body;
-
-                $mail2->send();
-                Log::info('Email successfully sent via PHPMailer (Port 465 SSL Fallback)', ['to' => $to, 'subject' => $subject]);
+                $mail = self::createMailer(587, 'tls');
+                $mail->addAddress($to);
+                $mail->isHTML($isHtml);
+                $mail->Subject = $subject;
+                $mail->Body    = $body;
+                $mail->send();
+                Log::info('Email successfully sent via PHPMailer (Port 587 TLS)', ['to' => $to, 'subject' => $subject]);
                 return true;
-            } catch (\Throwable $e2) {
-                Log::error('PHPMailer all attempts failed: ' . $e2->getMessage(), [
-                    'to'      => $to,
-                    'subject' => $subject,
-                    'error_tls' => $e1->getMessage(),
-                    'error_ssl' => $e2->getMessage(),
-                ]);
-                return false;
+            } catch (\Throwable $e1) {
+                Log::warning('PHPMailer Port 587 failed, trying Port 465 SSL: ' . $e1->getMessage(), ['to' => $to]);
+                try {
+                    $mail2 = self::createMailer(465, 'ssl');
+                    $mail2->addAddress($to);
+                    $mail2->isHTML($isHtml);
+                    $mail2->Subject = $subject;
+                    $mail2->Body    = $body;
+                    $mail2->send();
+                    Log::info('Email successfully sent via PHPMailer (Port 465 SSL Fallback)', ['to' => $to, 'subject' => $subject]);
+                    return true;
+                } catch (\Throwable $e2) {
+                    Log::error('PHPMailer all attempts failed: ' . $e2->getMessage());
+                }
             }
         }
+
+        // Percobaan 3: Laravel Mail Facade
+        try {
+            if (class_exists(\Illuminate\Support\Facades\Mail::class)) {
+                $fromAddress = env('MAIL_FROM_ADDRESS', env('MAIL_USERNAME', '24n40004@student.unika.ac.id'));
+                $fromName    = env('MAIL_FROM_NAME', 'notifikiasifhk');
+                \Illuminate\Support\Facades\Mail::html($body, function ($msg) use ($to, $subject, $fromAddress, $fromName) {
+                    $msg->to($to)->subject($subject)->from($fromAddress, $fromName);
+                });
+                Log::info('Email successfully sent via Laravel Mail Facade', ['to' => $to, 'subject' => $subject]);
+                return true;
+            }
+        } catch (\Throwable $eMail) {
+            Log::warning('Laravel Mail Facade error: ' . $eMail->getMessage());
+        }
+
+        // Percobaan 4: Native mail()
+        try {
+            $headers  = "MIME-Version: 1.0\r\n";
+            $headers .= "Content-type: text/html; charset=UTF-8\r\n";
+            $headers .= "From: notifikiasifhk <24n40004@student.unika.ac.id>\r\n";
+            $sent = @mail($to, $subject, $body, $headers);
+            if ($sent) {
+                Log::info('Email sent via native mail() fallback', ['to' => $to]);
+                return true;
+            }
+        } catch (\Throwable $eNative) {
+            Log::error('Native mail() failed: ' . $eNative->getMessage());
+        }
+
+        return false;
     }
 
     /**
