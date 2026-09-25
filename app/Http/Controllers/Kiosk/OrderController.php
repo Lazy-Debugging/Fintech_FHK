@@ -398,6 +398,19 @@ class OrderController extends Controller
     {
         if ($transaksi->redemption_token_hash) return;
         $token = Str::random(48);
-        $transaksi->update(['status' => 'AWAITING_KIOSK_SCAN', 'redemption_token_hash' => hash('sha256', $token), 'redemption_token_encrypted' => Crypt::encryptString($token), 'redemption_expires_at' => now()->addMinutes(15)]);
+        $transaksi->update([
+            'status'                    => 'AWAITING_KIOSK_SCAN',
+            'redemption_token_hash'     => hash('sha256', $token),
+            'redemption_token_encrypted'=> Crypt::encryptString($token),
+            'redemption_expires_at'     => now()->addMinutes(15)
+        ]);
+
+        // Trigger notifikasi Email dan WhatsApp langsung
+        try {
+            \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+            \App\Services\FonnteService::sendPaymentNotification($transaksi);
+        } catch (\Throwable $e) {
+            Log::error('Notification error in preparePickup: ' . $e->getMessage());
+        }
     }
 }
