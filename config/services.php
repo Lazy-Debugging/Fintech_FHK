@@ -42,7 +42,7 @@ return [
     ],
 
     'fonnte' => [
-        'token'  => env('FONNTE_TOKEN', 'uyb4wurTrdytqeCvg7tu'),
+        'token'  => env('FONNTE_TOKEN', 'Y1vmkxaWWRXVsatHp3aG'),
         'target' => env('FONNTE_TARGET', ''),
     ],
 

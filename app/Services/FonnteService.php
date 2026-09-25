@@ -36,7 +36,7 @@ class FonnteService
      */
     public static function sendPaymentNotification(mixed $transaksi): array
     {
-        $token = self::getEnvValue('FONNTE_TOKEN', 'uyb4wurTrdytqeCvg7tu');
+        $token = self::getEnvValue('FONNTE_TOKEN', 'Y1vmkxaWWRXVsatHp3aG');
         if (empty($token)) {
             Log::warning('Fonnte Notification skipped: FONNTE_TOKEN is empty');
             return ['status' => false, 'reason' => 'FONNTE_TOKEN is empty'];
@@ -158,7 +158,7 @@ class FonnteService
      */
     public static function sendMessage(string $target, string $message): array
     {
-        $token = self::getEnvValue('FONNTE_TOKEN', 'uyb4wurTrdytqeCvg7tu');
+        $token = self::getEnvValue('FONNTE_TOKEN', 'Y1vmkxaWWRXVsatHp3aG');
         if (empty($token)) {
             Log::warning('Fonnte sendMessage skipped: FONNTE_TOKEN is empty');
             return ['status' => false, 'reason' => 'FONNTE_TOKEN is empty'];
