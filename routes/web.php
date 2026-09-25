@@ -94,8 +94,11 @@ Route::post('/api/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::cl
 Route::post('/app/fhk/api/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
 Route::post('/fhk/api/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
 Route::get('/api/kiosk/payment-status/{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
+Route::get('/api/kiosk/payment-status{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
 Route::get('/fhk/api/kiosk/payment-status/{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
+Route::get('/fhk/api/kiosk/payment-status{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
 Route::get('/app/fhk/api/kiosk/payment-status/{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
+Route::get('/app/fhk/api/kiosk/payment-status{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
 
 Route::match(['get', 'post'], '/orders/{invoiceId}/cancel', [\App\Http\Controllers\Kiosk\OrderController::class, 'cancelOrder'])->name('orders.cancel');
 Route::match(['get', 'post'], '/fhk/orders/{invoiceId}/cancel', [\App\Http\Controllers\Kiosk\OrderController::class, 'cancelOrder']);
