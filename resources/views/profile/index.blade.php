@@ -35,6 +35,34 @@
         @endunless
     </div>
 
+    @if($user)
+    <!-- WhatsApp Phone Number Setting Card -->
+    <div class="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-3 border border-emerald-500/30 shadow-xl">
+        <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                <i class="fa-brands fa-whatsapp text-emerald-400 text-lg"></i> Notifikasi Otomatis WhatsApp
+            </h3>
+            <span class="text-[11px] text-emerald-400 font-bold bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-800/60">
+                <i class="fa-solid fa-bolt"></i> Terhubung Fonnte Gateway
+            </span>
+        </div>
+        <p class="text-xs text-slate-400">
+            Masukkan nomor WhatsApp Anda agar bukti pembayaran dan status transaksi air minum terkirim secara otomatis.
+        </p>
+
+        <form method="POST" action="{{ route('profile.phone') }}" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+            @csrf
+            <div class="relative flex-1">
+                <input type="text" name="phone" value="{{ old('phone', $user->phone) }}" placeholder="Contoh: 081234567890" class="w-full bg-slate-900 border border-slate-700/80 text-white text-xs rounded-xl pl-9 pr-3 py-2.5 font-bold focus:border-emerald-400 focus:outline-none">
+                <i class="fa-brands fa-whatsapp absolute left-3 top-3 text-sm text-emerald-400"></i>
+            </div>
+            <button type="submit" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 text-xs font-black shadow-lg shadow-emerald-500/20 transition flex items-center justify-center gap-1.5 shrink-0">
+                <i class="fa-solid fa-floppy-disk"></i> Simpan Nomor WA
+            </button>
+        </form>
+    </div>
+    @endif
+
     <!-- Riwayat Transaksi -->
     <div class="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-4">
         <div class="flex items-center justify-between">

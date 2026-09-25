@@ -25,6 +25,7 @@ Route::get('/dashboard', function () {
 })->name('public.dashboard');
 
 Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
+Route::post('/profile/phone', [ProfileController::class, 'updatePhone'])->name('profile.phone');
 
 Route::get('/login', [AuthController::class, 'showLogin'])->middleware('guest')->name('login');
 Route::get('/admin/login', [AuthController::class, 'showAdminLogin'])->middleware('guest')->name('admin.login');

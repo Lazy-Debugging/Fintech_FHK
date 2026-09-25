@@ -136,4 +136,40 @@ class ProfileController extends Controller
 
         return view('profile.index', compact('transactions', 'vouchers', 'user'));
     }
+
+    /**
+     * Update Nomor WhatsApp / Telepon Pelanggan
+     */
+    public function updatePhone(Request $request)
+    {
+        $user = $request->user() ?? (function_exists('auth') ? auth()->user() : null);
+        if (!$user) {
+            return redirect()->route('login')->with('error', 'Silakan masuk terlebih dahulu untuk memperbarui nomor telepon.');
+        }
+
+        $validated = $request->validate([
+            'phone' => 'nullable|string|max:30',
+        ]);
+
+        $rawPhone = trim($validated['phone'] ?? '');
+        $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
+
+        // Standarisasi nomor telepon Indonesia (e.g. 62812... -> 0812...)
+        if (!empty($cleanPhone)) {
+            if (str_starts_with($cleanPhone, '628')) {
+                $cleanPhone = '08' . substr($cleanPhone, 3);
+            }
+        }
+
+        $user->update(['phone' => $cleanPhone]);
+
+        // Juga update nomor telepon pada transaksi pending milik user jika ada
+        if (!empty($cleanPhone)) {
+            Transaksi::where('user_id', $user->id)
+                ->whereIn('status', ['NEW', 'PENDING', 'UNPAID'])
+                ->update(['userPhone' => $cleanPhone]);
+        }
+
+        return redirect()->route('profile')->with('success', 'Nomor WhatsApp berhasil diperbarui! Notifikasi pembayaran otomatis akan dikirim ke nomor ini.');
+    }
 }

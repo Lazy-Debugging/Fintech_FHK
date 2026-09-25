@@ -99,22 +99,40 @@ class OrderController extends Controller
 
         $inputEmail = trim((string) $request->input('user_email', ''));
         $inputName  = trim((string) $request->input('user_name', ''));
+        $inputPhone = trim((string) $request->input('user_phone', ''));
+
+        if (!empty($inputPhone)) {
+            $inputPhone = preg_replace('/[^0-9]/', '', $inputPhone);
+            if (str_starts_with($inputPhone, '628')) {
+                $inputPhone = '08' . substr($inputPhone, 3);
+            }
+        }
 
         if ($user) {
             $customerName  = $user->name;
             $customerEmail = $user->email;
-            $customerPhone = $user->phone ?? '';
+            if (!empty($inputPhone)) {
+                $customerPhone = $inputPhone;
+                if (empty($user->phone)) {
+                    $user->update(['phone' => $inputPhone]);
+                }
+            } else {
+                $customerPhone = $user->phone ?? '';
+            }
         } elseif (!empty($inputEmail) && filter_var($inputEmail, FILTER_VALIDATE_EMAIL)) {
             $matchedUser = \App\Models\User::where('email', $inputEmail)->first();
             $user = $matchedUser;
             $customerName  = !empty($inputName) ? $inputName : ($matchedUser?->name ?? 'Pengguna FHK');
             $customerEmail = $inputEmail;
-            $customerPhone = $matchedUser?->phone ?? '';
+            $customerPhone = !empty($inputPhone) ? $inputPhone : ($matchedUser?->phone ?? '');
+            if ($user && !empty($inputPhone) && empty($user->phone)) {
+                $user->update(['phone' => $inputPhone]);
+            }
         } else {
             $guestId = substr($guestToken ?? md5(microtime()), 0, 6);
-            $customerName  = "Pengunjung Tamu (#{$guestId})";
-            $customerEmail = "tamu.{$guestId}@fhk.id";
-            $customerPhone = "";
+            $customerName  = !empty($inputName) ? $inputName : "Pengunjung Tamu (#{$guestId})";
+            $customerEmail = !empty($inputEmail) ? $inputEmail : "tamu.{$guestId}@fhk.id";
+            $customerPhone = $inputPhone;
         }
 
         Log::info('OrderController createOrder identity', [

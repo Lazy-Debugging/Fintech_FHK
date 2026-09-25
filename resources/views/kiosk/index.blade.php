@@ -83,12 +83,21 @@
             </div>
         </div>
 
-        @auth
-        <div class="space-y-2">
-            <label for="voucher-code" class="text-xs font-bold uppercase tracking-wider text-slate-400">Kode Voucher</label>
-            <input id="voucher-code" type="text" maxlength="40" placeholder="Masukkan kode voucher" class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white uppercase outline-none focus:border-cyan-400">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            @auth
+            <div class="space-y-1.5">
+                <label for="voucher-code" class="text-xs font-bold uppercase tracking-wider text-slate-400">Kode Voucher</label>
+                <input id="voucher-code" type="text" maxlength="40" placeholder="Masukkan kode voucher" class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs text-white uppercase outline-none focus:border-cyan-400">
+            </div>
+            @endauth
+
+            <div class="space-y-1.5 @guest sm:col-span-2 @endguest">
+                <label for="user-phone" class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <i class="fa-brands fa-whatsapp text-emerald-400"></i> No. WhatsApp (Notifikasi Otomatis)
+                </label>
+                <input id="user-phone" type="text" maxlength="30" value="{{ auth()->user()->phone ?? '' }}" placeholder="Contoh: 081234567890" class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-400">
+            </div>
         </div>
-        @endauth
 
         <!-- 2. Pilihan Volume Air (Volume Option) -->
         <div class="space-y-3">
@@ -303,6 +312,9 @@
         const voucherCode = '';
         @endauth
 
+        const userPhoneInput = document.getElementById('user-phone');
+        const userPhone = userPhoneInput ? userPhoneInput.value.trim() : '';
+
         // POST ke endpoint Laravel OrderController untuk membuat transaksi & invoice AiYO
         fetch("{{ route('kiosk.order') }}", {
             method: 'POST',
@@ -318,6 +330,7 @@
                 voucher_code: voucherCode || undefined,
                 user_email:  "{{ auth()->user()->email ?? '' }}",
                 user_name:   "{{ auth()->user()->name ?? '' }}",
+                user_phone:  userPhone || undefined,
             })
         })
         .then(res => res.json())

@@ -94,12 +94,20 @@ class FonnteService
         $targets = [];
 
         // 1. Nomor pelanggan dari transaksi jika valid
-        $cleanPhone = preg_replace('/[^0-9]/', '', (string) $userPhone);
-        if (!empty($cleanPhone) && !in_array($cleanPhone, ['0812000000', '08123456789', '081234567890', '081200000000', '0'])) {
-            $targets[] = $cleanPhone;
+        $cleanTxPhone = preg_replace('/[^0-9]/', '', (string) $userPhone);
+        if (!empty($cleanTxPhone) && !in_array($cleanTxPhone, ['0812000000', '08123456789', '081234567890', '081200000000', '0'])) {
+            $targets[] = $cleanTxPhone;
         }
 
-        // 2. Nomor admin / target default dari konfigurasi .env jika diisi
+        // 2. Nomor telepon dari profil akun User jika valid
+        if ($userObj && !empty($userObj->phone)) {
+            $cleanUserPhone = preg_replace('/[^0-9]/', '', (string) $userObj->phone);
+            if (!empty($cleanUserPhone) && !in_array($cleanUserPhone, ['0812000000', '08123456789', '081234567890', '081200000000', '0'])) {
+                $targets[] = $cleanUserPhone;
+            }
+        }
+
+        // 3. Nomor admin / target default dari konfigurasi .env jika diisi
         $adminPhone = self::getEnvValue('FONNTE_TARGET', '');
         if (!empty($adminPhone)) {
             $adminClean = preg_replace('/[^0-9]/', '', (string) $adminPhone);
