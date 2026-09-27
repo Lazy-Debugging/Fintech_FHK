@@ -739,6 +739,61 @@ if (file_exists($sqliteDb)) {
     } catch (\Throwable $eSqlite) {}
 }
 
+// 4e. Perbaiki routes/web.php & kiosk_layout.blade.php agar route 'home' & 'kios' tidak ter-overwrite oleh route admin
+$webRoutesFile = $baseDir . '/routes/web.php';
+if (file_exists($webRoutesFile)) {
+    $webRoutesContent = file_get_contents($webRoutesFile);
+    $webRoutesContent = str_replace(
+        "Route::redirect('/', '/admin/dashboard')->name('home');",
+        "Route::redirect('/', '/admin/dashboard')->name('index');",
+        $webRoutesContent
+    );
+    $webRoutesContent = str_replace(
+        "Route::prefix('fhk/admin')->middleware(['auth', 'admin'])->group(\$adminRoutes);",
+        "Route::prefix('fhk/admin')->as('admin.fhk.')->middleware(['auth', 'admin'])->group(\$adminRoutes);",
+        $webRoutesContent
+    );
+    $webRoutesContent = str_replace(
+        "Route::prefix('app/fhk/admin')->middleware(['auth', 'admin'])->group(\$adminRoutes);",
+        "Route::prefix('app/fhk/admin')->as('admin.app_fhk.')->middleware(['auth', 'admin'])->group(\$adminRoutes);",
+        $webRoutesContent
+    );
+    file_put_contents($webRoutesFile, $webRoutesContent);
+}
+
+$kioskLayoutFile = $baseDir . '/resources/views/layouts/kiosk_layout.blade.php';
+if (file_exists($kioskLayoutFile)) {
+    $kioskLayoutContent = file_get_contents($kioskLayoutFile);
+    $kioskLayoutContent = str_replace(
+        "<a href=\"{{ route('home') }}\"",
+        "<a href=\"{{ route('kiosk.home') }}\"",
+        $kioskLayoutContent
+    );
+    file_put_contents($kioskLayoutFile, $kioskLayoutContent);
+}
+
+$loginBladeFile = $baseDir . '/resources/views/auth/login.blade.php';
+if (file_exists($loginBladeFile)) {
+    $loginBladeContent = file_get_contents($loginBladeFile);
+    $loginBladeContent = str_replace(
+        "<a href=\"{{ route('home') }}\"",
+        "<a href=\"{{ route('kiosk.home') }}\"",
+        $loginBladeContent
+    );
+    file_put_contents($loginBladeFile, $loginBladeContent);
+}
+
+$authCtrlFile = $baseDir . '/app/Http/Controllers/AuthController.php';
+if (file_exists($authCtrlFile)) {
+    $authCtrlContent = file_get_contents($authCtrlFile);
+    $authCtrlContent = str_replace(
+        "return redirect()->route('home');",
+        "return redirect()->route('kiosk.home');",
+        $authCtrlContent
+    );
+    file_put_contents($authCtrlFile, $authCtrlContent);
+}
+
 // 5. Bersihkan view cache Blade & bootstrap route cache
 $views = glob($baseDir . '/storage/framework/views/*.php');
 $del = 0;

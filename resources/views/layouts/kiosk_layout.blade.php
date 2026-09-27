@@ -158,7 +158,7 @@
     <!-- Secondary Nav: Kios / Profil / Login -->
     <nav class="w-full border-b border-slate-800/60 bg-slate-950/40 px-3 sm:px-4 md:px-6 py-2 flex items-center justify-between gap-3 sticky top-[64px] sm:top-[72px] z-40">
         <div class="flex items-center gap-1.5 text-xs font-bold">
-            <a href="{{ route('home') }}" class="px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition {{ request()->routeIs('home') || request()->routeIs('kiosk.*') ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-white' }}">
+            <a href="{{ route('kiosk.home') }}" class="px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition {{ request()->routeIs('home') || request()->routeIs('kiosk.*') ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-white' }}">
                 <i class="fa-solid fa-droplet"></i><span>Kios</span>
             </a>
             <a href="{{ route('profile') }}" class="px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition {{ request()->routeIs('profile') ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-white' }}">

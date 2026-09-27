@@ -153,7 +153,7 @@
 					<button class="button guest" type="submit"><i class="fa-solid fa-user-clock"></i>Lanjut sebagai tamu</button>
 				</form>
 
-				<p class="footer"><a href="{{ route('home') }}">&larr; Kembali ke beranda</a> &middot; <a href="{{ route('admin.login') }}">Masuk sebagai pengelola</a></p>
+				<p class="footer"><a href="{{ route('kiosk.home') }}">&larr; Kembali ke beranda</a> &middot; <a href="{{ route('admin.login') }}">Masuk sebagai pengelola</a></p>
 			</div>
 		</main>
 	</div>
