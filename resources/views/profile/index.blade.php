@@ -24,9 +24,22 @@
         <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white text-2xl font-black shadow-lg shadow-cyan-500/30 shrink-0">
             {{ $user ? \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr($user->name, 0, 1)) : 'T' }}
         </div>
-        <div class="min-w-0">
+        <div class="min-w-0 flex-1">
             <h2 class="text-lg sm:text-xl font-black text-white truncate">{{ $user?->name ?? 'Pengunjung Tamu' }}</h2>
             <p class="text-xs text-slate-400 truncate">{{ $user?->email ?? 'Masuk dengan Google untuk menyimpan riwayat & memakai voucher.' }}</p>
+            @if($user)
+                <div class="mt-1.5 flex items-center gap-2">
+                    @if($user->phone)
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold">
+                            <i class="fa-brands fa-whatsapp text-emerald-400"></i> {{ $user->phone }}
+                        </span>
+                    @else
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-bold">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Belum Set Nomor WA
+                        </span>
+                    @endif
+                </div>
+            @endif
         </div>
         @unless($user)
             <a href="{{ route('login') }}" class="ml-auto shrink-0 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 text-xs font-bold hover:from-cyan-400 hover:to-blue-500 transition">
