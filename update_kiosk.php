@@ -635,20 +635,31 @@ class ProfileController extends Controller
             }
         }
 
+        // 1. Pastikan kolom 'phone' tersedia di tabel users
         try {
-            $user->update(['phone' => $cleanPhone]);
-        } catch (\Throwable $e) {
-            try {
-                if (\Illuminate\Support\Facades\Schema::hasTable('users') && !\Illuminate\Support\Facades\Schema::hasColumn('users', 'phone')) {
-                    \Illuminate\Support\Facades\Schema::table('users', function ($table) {
-                        $table->string('phone', 30)->nullable()->after('email');
-                    });
-                }
-                $user->update(['phone' => $cleanPhone]);
-            } catch (\Throwable $e2) {
-                \Illuminate\Support\Facades\Log::warning('ProfileController updatePhone fallback failed: ' . $e2->getMessage());
+            if (\Illuminate\Support\Facades\Schema::hasTable('users') && !\Illuminate\Support\Facades\Schema::hasColumn('users', 'phone')) {
+                \Illuminate\Support\Facades\Schema::table('users', function ($table) {
+                    $table->string('phone', 30)->nullable()->after('email');
+                });
             }
+        } catch (\Throwable $eCol) {
+            \Illuminate\Support\Facades\Log::warning('Add phone column error: ' . $eCol->getMessage());
         }
+
+        // 2. Simpan langsung ke database via DB::table (bypass Eloquent $fillable)
+        try {
+            \Illuminate\Support\Facades\DB::table('users')
+                ->where('id', $user->id)
+                ->update(['phone' => $cleanPhone]);
+        } catch (\Throwable $eDb) {
+            \Illuminate\Support\Facades\Log::warning('DB update user phone error: ' . $eDb->getMessage());
+        }
+
+        // 3. Simpan ke instance model aktif
+        try {
+            $user->phone = $cleanPhone;
+            $user->save();
+        } catch (\Throwable $eSave) {}
 
         if (!empty($cleanPhone)) {
             try {
@@ -664,6 +675,69 @@ class ProfileController extends Controller
 PHP;
 
 file_put_contents($baseDir . '/app/Http/Controllers/ProfileController.php', $fullProfileControllerCode);
+
+// 4c. Overwrite app/Models/User.php dengan $fillable phone
+$fullUserModelCode = <<<'PHP'
+<?php
+
+namespace App\Models;
+
+use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+
+class User extends Authenticatable
+{
+    use HasFactory, Notifiable;
+
+    protected $fillable = [
+        'name',
+        'username',
+        'email',
+        'password',
+        'role',
+        'google_id',
+        'phone',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
+    ];
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+}
+PHP;
+
+file_put_contents($baseDir . '/app/Models/User.php', $fullUserModelCode);
+
+// 4d. Tambah kolom phone ke database.sqlite secara langsung jika belum ada
+$sqliteDb = $baseDir . '/database/database.sqlite';
+if (file_exists($sqliteDb)) {
+    try {
+        $p = new PDO("sqlite:" . $sqliteDb);
+        $hasCol = false;
+        $tInfo = $p->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($tInfo as $c) {
+            if ($c['name'] === 'phone') {
+                $hasCol = true;
+                break;
+            }
+        }
+        if (!$hasCol) {
+            $p->exec("ALTER TABLE users ADD COLUMN phone VARCHAR(30) NULL");
+        }
+    } catch (\Throwable $eSqlite) {}
+}
 
 // 5. Bersihkan view cache Blade & bootstrap route cache
 $views = glob($baseDir . '/storage/framework/views/*.php');
