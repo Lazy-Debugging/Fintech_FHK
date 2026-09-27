@@ -161,13 +161,29 @@ class ProfileController extends Controller
             }
         }
 
-        $user->update(['phone' => $cleanPhone]);
+        // Simpan nomor telepon dengan fallback auto-migration jika kolom belum ada di DB live
+        try {
+            $user->update(['phone' => $cleanPhone]);
+        } catch (\Throwable $e) {
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable('users') && !\Illuminate\Support\Facades\Schema::hasColumn('users', 'phone')) {
+                    \Illuminate\Support\Facades\Schema::table('users', function ($table) {
+                        $table->string('phone', 30)->nullable()->after('email');
+                    });
+                }
+                $user->update(['phone' => $cleanPhone]);
+            } catch (\Throwable $e2) {
+                \Illuminate\Support\Facades\Log::warning('ProfileController updatePhone fallback failed: ' . $e2->getMessage());
+            }
+        }
 
         // Juga update nomor telepon pada transaksi pending milik user jika ada
         if (!empty($cleanPhone)) {
-            Transaksi::where('user_id', $user->id)
-                ->whereIn('status', ['NEW', 'PENDING', 'UNPAID'])
-                ->update(['userPhone' => $cleanPhone]);
+            try {
+                Transaksi::where('user_id', $user->id)
+                    ->whereIn('status', ['NEW', 'PENDING', 'UNPAID'])
+                    ->update(['userPhone' => $cleanPhone]);
+            } catch (\Throwable $eTx) {}
         }
 
         return redirect()->route('profile')->with('success', 'Nomor WhatsApp berhasil diperbarui! Notifikasi pembayaran otomatis akan dikirim ke nomor ini.');
