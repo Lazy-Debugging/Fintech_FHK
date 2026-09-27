@@ -14,21 +14,17 @@ class ProfileController extends Controller
         $guestToken = $request->session()->get('guest_order_id');
 
         if ($user) {
-            // Auto-tautkan transaksi tanpa user_id yang memiliki userEmail, guest_token, atau userName sama
             Transaksi::whereNull('user_id')
                 ->where(function ($q) use ($user, $guestToken) {
                     $q->where('userEmail', $user->email);
                     if ($guestToken) {
                         $q->orWhere('guest_token', $guestToken);
                     }
-                    // Juga match berdasarkan userName yang mengandung nama user
                     $q->orWhere('userName', 'like', '%' . $user->name . '%');
                 })
                 ->update(['user_id' => $user->id]);
         }
 
-        // Auto-sync status transaksi PENDING / NEW / UNPAID ke AiYO Gateway saat profil dibuka
-        // Query lebih agresif: cari transaksi milik user ATAU milik guest_token yang sama
         $pendingTxs = Transaksi::whereIn('status', ['PENDING', 'NEW', 'UNPAID'])
             ->where(function ($query) use ($user, $guestToken) {
                 if ($user) {
@@ -45,7 +41,6 @@ class ProfileController extends Controller
         if ($pendingTxs->isNotEmpty()) {
             $aiyoService = app(\App\Services\AiyoPaymentService::class);
             foreach ($pendingTxs as $tx) {
-                // Auto-link user_id jika belum terisi dan user sudah login
                 if ($user && !$tx->user_id) {
                     $tx->update(['user_id' => $user->id]);
                 }
@@ -66,7 +61,6 @@ class ProfileController extends Controller
         $sortFilter   = $request->query('sort', 'latest');
         $searchFilter = trim($request->query('search', ''));
 
-        // Query utama — lebih inklusif: gabungkan user_id, userEmail, DAN guest_token
         $transactionsQuery = Transaksi::with('kiosk')
             ->where(function ($query) use ($user, $guestToken) {
                 if ($user) {
@@ -76,13 +70,11 @@ class ProfileController extends Controller
                 if ($guestToken) {
                     $query->orWhere('guest_token', $guestToken);
                 }
-                // Jika tidak ada user dan tidak ada guestToken, jangan tampilkan apa-apa
                 if (!$user && !$guestToken) {
                     $query->whereRaw('1 = 0');
                 }
             });
 
-        // Filter Status
         if ($statusFilter !== 'all') {
             if (in_array($statusFilter, ['PENDING', 'NEW', 'UNPAID'])) {
                 $transactionsQuery->whereIn('status', ['PENDING', 'NEW', 'UNPAID']);
@@ -97,7 +89,6 @@ class ProfileController extends Controller
             }
         }
 
-        // Search Keyword
         if (!empty($searchFilter)) {
             $transactionsQuery->where(function ($q) use ($searchFilter) {
                 $q->where('invoiceId', 'like', "%{$searchFilter}%")
@@ -106,7 +97,6 @@ class ProfileController extends Controller
             });
         }
 
-        // Sorting
         switch ($sortFilter) {
             case 'oldest':
                 $transactionsQuery->orderBy('created_at', 'asc')->orderBy('timestamp', 'asc');
@@ -137,9 +127,6 @@ class ProfileController extends Controller
         return view('profile.index', compact('transactions', 'vouchers', 'user'));
     }
 
-    /**
-     * Update Nomor WhatsApp / Telepon Pelanggan
-     */
     public function updatePhone(Request $request)
     {
         $user = $request->user() ?? (function_exists('auth') ? auth()->user() : null);
@@ -154,7 +141,6 @@ class ProfileController extends Controller
         $rawPhone = trim($validated['phone'] ?? '');
         $cleanPhone = preg_replace('/[^0-9]/', '', $rawPhone);
 
-        // Standarisasi nomor telepon Indonesia (e.g. 62812... -> 0812...)
         if (!empty($cleanPhone)) {
             if (str_starts_with($cleanPhone, '628')) {
                 $cleanPhone = '08' . substr($cleanPhone, 3);
@@ -172,7 +158,7 @@ class ProfileController extends Controller
             \Illuminate\Support\Facades\Log::warning('Add phone column error: ' . $eCol->getMessage());
         }
 
-        // 2. Simpan langsung ke database via DB::table (bypass Eloquent $fillable jika file User.php di server belum di-update)
+        // 2. Simpan langsung ke database via DB::table (bypass Eloquent $fillable)
         try {
             \Illuminate\Support\Facades\DB::table('users')
                 ->where('id', $user->id)
@@ -187,7 +173,6 @@ class ProfileController extends Controller
             $user->save();
         } catch (\Throwable $eSave) {}
 
-        // Juga update nomor telepon pada transaksi pending milik user jika ada
         if (!empty($cleanPhone)) {
             try {
                 Transaksi::where('user_id', $user->id)

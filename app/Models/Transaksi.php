@@ -64,7 +64,6 @@ class Transaksi extends Model
                 $newStatus = strtoupper((string) $transaksi->status);
                 $oldStatus = strtoupper((string) $transaksi->getOriginal('status'));
 
-                // Kirim notifikasi WhatsApp & Email saat status berpindah menjadi Lunas (PAID / AWAITING_KIOSK_SCAN)
                 if (in_array($newStatus, ['PAID', 'AWAITING_KIOSK_SCAN'], true) 
                     && !in_array($oldStatus, ['PAID', 'AWAITING_KIOSK_SCAN', 'DISPENSING', 'COMPLETED'], true)) {
                     try {
@@ -79,7 +78,6 @@ class Transaksi extends Model
                     } catch (\Throwable $e) {}
                 }
 
-                // Kirim notifikasi Email saat tagihan tidak terbayar dan kedaluwarsa (EXPIRED / CANCELLED)
                 if (in_array($newStatus, ['EXPIRED', 'CANCELLED'], true) 
                     && in_array($oldStatus, ['PENDING', 'NEW', 'UNPAID'], true)) {
                     try {

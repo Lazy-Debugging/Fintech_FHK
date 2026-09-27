@@ -855,13 +855,25 @@ class FonnteService
 
         $userObj = null;
         if (!empty($userId)) {
-            try { $userObj = \App\Models\User::find($userId); } catch (\Throwable $e) {}
+            try { 
+                if (class_exists(\App\Models\User::class)) {
+                    $userObj = \App\Models\User::find($userId); 
+                }
+            } catch (\Throwable $e) {}
         }
         if (!$userObj && !empty($userEmail)) {
-            try { $userObj = \App\Models\User::where('email', $userEmail)->first(); } catch (\Throwable $e) {}
+            try { 
+                if (class_exists(\App\Models\User::class)) {
+                    $userObj = \App\Models\User::where('email', $userEmail)->first(); 
+                }
+            } catch (\Throwable $e) {}
         }
-        if (!$userObj && function_exists('auth') && auth()->check()) {
-            $userObj = auth()->user();
+        if (!$userObj) {
+            try {
+                if (function_exists('app') && app()->bound('auth') && function_exists('auth') && auth()->check()) {
+                    $userObj = auth()->user();
+                }
+            } catch (\Throwable $e) {}
         }
 
         if (empty($userName) || str_starts_with((string)$userName, 'Pengunjung Tamu') || $userName === 'Pengunjung Kios') {

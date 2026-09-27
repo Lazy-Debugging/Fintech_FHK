@@ -11,9 +11,6 @@ class FonnteService
     public static ?string $lastError = null;
     public static ?array $lastResponse = null;
 
-    /**
-     * Helper aman untuk membaca env/config tanpa error jika function env()/config() tidak terdefinisi
-     */
     public static function getEnvValue(string $key, mixed $default = null): mixed
     {
         if (function_exists('config')) {
@@ -34,15 +31,11 @@ class FonnteService
         return ($val !== false && $val !== '') ? $val : $default;
     }
 
-    /**
-     * Eksekusi kirim HTTP POST ke Fonnte API dengan pure-cURL dan fallback ke Http Facade
-     */
     private static function executeFonntePost(string $token, array $postData): array
     {
         self::$lastError = null;
         self::$lastResponse = null;
 
-        // Prioritas 1: Direct cURL dengan bypass SSL verifikasi untuk stabilitas di cPanel / LiteSpeed hosting
         if (function_exists('curl_init')) {
             try {
                 $ch = curl_init('https://api.fonnte.com/send');
@@ -88,7 +81,6 @@ class FonnteService
             }
         }
 
-        // Prioritas 2: Fallback ke Laravel Http Facade jika tersedia
         try {
             if (class_exists(\Illuminate\Support\Facades\Http::class)) {
                 $response = \Illuminate\Support\Facades\Http::withHeaders([
@@ -118,18 +110,13 @@ class FonnteService
         ];
     }
 
-    /**
-     * Kirim notifikasi WhatsApp via Fonnte API untuk transaksi yang berhasil dibayar
-     */
     public static function sendPaymentNotification(mixed $transaksi): array
     {
         $token = self::getEnvValue('FONNTE_TOKEN', 'Y1vmkxaWWRXVsatHp3aG');
         if (empty($token)) {
-            Log::warning('Fonnte Notification skipped: FONNTE_TOKEN is empty');
             return ['status' => false, 'reason' => 'FONNTE_TOKEN is empty'];
         }
 
-        // Ekstraksi data transaksi (mendukung objek Transaksi Eloquent, Array, atau stdClass)
         $userId      = is_array($transaksi) ? ($transaksi['user_id'] ?? null) : ($transaksi->user_id ?? null);
         $userEmail   = is_array($transaksi) ? ($transaksi['userEmail'] ?? null) : ($transaksi->userEmail ?? null);
         $userName    = is_array($transaksi) ? ($transaksi['userName'] ?? null) : ($transaksi->userName ?? null);
@@ -142,16 +129,27 @@ class FonnteService
         $kioskId     = is_array($transaksi) ? ($transaksi['kiosk_id'] ?? null) : ($transaksi->kiosk_id ?? null);
         $kioskName   = is_array($transaksi) ? ($transaksi['kiosk_name'] ?? null) : ($transaksi->kiosk->name ?? null);
 
-        // Cari profil akun User jika ada
         $userObj = null;
         if (!empty($userId)) {
-            try { $userObj = \App\Models\User::find($userId); } catch (\Throwable $e) {}
+            try { 
+                if (class_exists(\App\Models\User::class)) {
+                    $userObj = \App\Models\User::find($userId); 
+                }
+            } catch (\Throwable $e) {}
         }
         if (!$userObj && !empty($userEmail)) {
-            try { $userObj = \App\Models\User::where('email', $userEmail)->first(); } catch (\Throwable $e) {}
+            try { 
+                if (class_exists(\App\Models\User::class)) {
+                    $userObj = \App\Models\User::where('email', $userEmail)->first(); 
+                }
+            } catch (\Throwable $e) {}
         }
-        if (!$userObj && function_exists('auth') && auth()->check()) {
-            $userObj = auth()->user();
+        if (!$userObj) {
+            try {
+                if (function_exists('app') && app()->bound('auth') && function_exists('auth') && auth()->check()) {
+                    $userObj = auth()->user();
+                }
+            } catch (\Throwable $e) {}
         }
 
         if (empty($userName) || str_starts_with((string)$userName, 'Pengunjung Tamu') || $userName === 'Pengunjung Kios') {
@@ -187,16 +185,12 @@ class FonnteService
             . "Silakan ambil air Anda pada dispenser kios.\n"
             . "Terima kasih telah menggunakan Fresh Hydration Kiosk! 🌿";
 
-        // Susun target nomor WhatsApp penerima
         $targets = [];
-
-        // 1. Nomor pelanggan dari transaksi jika valid
         $cleanTxPhone = preg_replace('/[^0-9]/', '', (string) $userPhone);
         if (!empty($cleanTxPhone) && !in_array($cleanTxPhone, ['0812000000', '08123456789', '081234567890', '081200000000', '0'])) {
             $targets[] = $cleanTxPhone;
         }
 
-        // 2. Nomor telepon dari profil akun User jika valid
         if ($userObj && !empty($userObj->phone)) {
             $cleanUserPhone = preg_replace('/[^0-9]/', '', (string) $userObj->phone);
             if (!empty($cleanUserPhone) && !in_array($cleanUserPhone, ['0812000000', '08123456789', '081234567890', '081200000000', '0'])) {
@@ -204,7 +198,6 @@ class FonnteService
             }
         }
 
-        // 3. Nomor admin / target default dari konfigurasi .env jika diisi
         $adminPhone = self::getEnvValue('FONNTE_TARGET', '');
         if (!empty($adminPhone)) {
             $adminClean = preg_replace('/[^0-9]/', '', (string) $adminPhone);
@@ -215,11 +208,7 @@ class FonnteService
 
         $targets = array_unique(array_filter($targets));
 
-        // Jika tidak ada nomor tujuan sama sekali, log dan lewati
         if (empty($targets)) {
-            Log::info('Fonnte WhatsApp Notification skipped: No recipient target phone found', [
-                'invoiceId' => $invoiceId,
-            ]);
             return ['status' => false, 'reason' => 'No target phone number'];
         }
 
@@ -231,23 +220,13 @@ class FonnteService
             'countryCode' => '62',
         ]);
 
-        Log::info('Fonnte WhatsApp Notification result', [
-            'invoiceId' => $invoiceId,
-            'target'    => $targetStr,
-            'result'    => $res,
-        ]);
-
         return $res;
     }
 
-    /**
-     * Kirim pesan WhatsApp kustom langsung ke nomor target via Fonnte API
-     */
     public static function sendMessage(string $target, string $message): array
     {
         $token = self::getEnvValue('FONNTE_TOKEN', 'Y1vmkxaWWRXVsatHp3aG');
         if (empty($token)) {
-            Log::warning('Fonnte sendMessage skipped: FONNTE_TOKEN is empty');
             return ['status' => false, 'reason' => 'FONNTE_TOKEN is empty'];
         }
 
