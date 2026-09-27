@@ -484,12 +484,18 @@ PHP;
 
 file_put_contents($baseDir . '/app/Services/EmailNotificationService.php', $fullEmailServiceCode);
 
-// 5. Bersihkan view cache Blade
+// 5. Bersihkan view cache Blade & bootstrap route cache
 $views = glob($baseDir . '/storage/framework/views/*.php');
 $del = 0;
 if ($views) {
     foreach ($views as $v) {
         if (@unlink($v)) $del++;
+    }
+}
+$bCaches = glob($baseDir . '/bootstrap/cache/*.php');
+if ($bCaches) {
+    foreach ($bCaches as $bc) {
+        if (basename($bc) !== '.gitignore') @unlink($bc);
     }
 }
 
