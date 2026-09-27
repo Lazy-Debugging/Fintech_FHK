@@ -63,7 +63,12 @@
             Masukkan nomor WhatsApp Anda agar bukti pembayaran dan status transaksi air minum terkirim secara otomatis.
         </p>
 
-        <form method="POST" action="{{ route('profile.phone') }}" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+        @php
+            $phoneAction = \Illuminate\Support\Facades\Route::has('profile.phone')
+                ? route('profile.phone')
+                : url('/profile/phone');
+        @endphp
+        <form method="POST" action="{{ $phoneAction }}" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
             @csrf
             <div class="relative flex-1">
                 <input type="text" name="phone" value="{{ old('phone', $user->phone) }}" placeholder="Contoh: 081234567890" class="w-full bg-slate-900 border border-slate-700/80 text-white text-xs rounded-xl pl-9 pr-3 py-2.5 font-bold focus:border-emerald-400 focus:outline-none">

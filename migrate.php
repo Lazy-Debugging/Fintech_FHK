@@ -98,7 +98,7 @@ if ($pdo) {
     }
 }
 
-// 3. Hapus cache view compiled secara langsung dari filesystem
+// 3. Hapus cache view & bootstrap route cache secara langsung dari filesystem
 $viewFiles = glob(__DIR__ . '/storage/framework/views/*.php');
 $deletedViews = 0;
 if ($viewFiles) {
@@ -107,6 +107,17 @@ if ($viewFiles) {
     }
 }
 $steps[] = ['ok', '✅', "Berhasil membersihkan {$deletedViews} file cache Blade View."];
+
+$bootstrapCacheFiles = glob(__DIR__ . '/bootstrap/cache/*.php');
+$deletedBootstrap = 0;
+if ($bootstrapCacheFiles) {
+    foreach ($bootstrapCacheFiles as $f) {
+        if (basename($f) !== '.gitignore' && @unlink($f)) {
+            $deletedBootstrap++;
+        }
+    }
+}
+$steps[] = ['ok', '✅', "Berhasil membersihkan {$deletedBootstrap} file cache route & config bootstrap."];
 
 // Reset OPcache jika aktif
 if (function_exists('opcache_reset')) {
@@ -123,8 +134,10 @@ try {
         $kernel->bootstrap();
 
         \Illuminate\Support\Facades\Artisan::call('view:clear');
+        \Illuminate\Support\Facades\Artisan::call('route:clear');
+        \Illuminate\Support\Facades\Artisan::call('config:clear');
         \Illuminate\Support\Facades\Artisan::call('cache:clear');
-        $steps[] = ['ok', '✅', 'Artisan view:clear & cache:clear berhasil dijalankan.'];
+        $steps[] = ['ok', '✅', 'Artisan view:clear, route:clear, config:clear, & cache:clear berhasil dijalankan.'];
     }
 } catch (\Throwable $e) {
     $steps[] = ['info', 'ℹ️', 'Laravel Bootstrap info: ' . $e->getMessage()];
