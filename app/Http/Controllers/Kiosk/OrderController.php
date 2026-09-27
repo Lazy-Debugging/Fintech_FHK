@@ -247,7 +247,12 @@ class OrderController extends Controller
                 'result' => $statusRes
             ]);
             if ($statusRes['success'] && $statusRes['isPaid']) {
-                $transaksi->update(['status' => 'PAID']); $this->preparePickup($transaksi);
+                $transaksi->update(['status' => 'PAID']); 
+                $this->preparePickup($transaksi);
+                try {
+                    \App\Services\FonnteService::sendPaymentNotification($transaksi);
+                    \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+                } catch (\Throwable $e) {}
                 return response()->json([
                     'success'       => true,
                     'status'        => 'PAID',
@@ -414,7 +419,12 @@ class OrderController extends Controller
 
     private function preparePickup(Transaksi $transaksi): void
     {
-        if ($transaksi->redemption_token_hash) return;
+        if ($transaksi->redemption_token_hash) {
+            try {
+                \App\Services\FonnteService::sendPaymentNotification($transaksi);
+            } catch (\Throwable $e) {}
+            return;
+        }
         $token = Str::random(48);
         $transaksi->update([
             'status'                    => 'AWAITING_KIOSK_SCAN',

@@ -720,7 +720,369 @@ PHP;
 
 file_put_contents($baseDir . '/app/Models/User.php', $fullUserModelCode);
 
-// 4d. Tambah kolom phone ke database.sqlite secara langsung jika belum ada
+// 4d. Overwrite app/Services/FonnteService.php dengan kode pure-cURL dan fallback resilient
+$fullFonnteServiceCode = <<<'PHP'
+<?php
+
+namespace App\Services;
+
+use App\Models\Transaksi;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class FonnteService
+{
+    public static ?string $lastError = null;
+    public static ?array $lastResponse = null;
+
+    public static function getEnvValue(string $key, mixed $default = null): mixed
+    {
+        if (function_exists('config')) {
+            try {
+                $cVal = config('services.fonnte.' . strtolower(str_replace('FONNTE_', '', $key)));
+                if ($cVal !== null) return $cVal;
+            } catch (\Throwable $e) {}
+        }
+        if (function_exists('env')) {
+            try {
+                $val = env($key);
+                if ($val !== null && $val !== '') return $val;
+            } catch (\Throwable $e) {}
+        }
+        if (isset($_ENV[$key]) && $_ENV[$key] !== '') return $_ENV[$key];
+        if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') return $_SERVER[$key];
+        $val = getenv($key);
+        return ($val !== false && $val !== '') ? $val : $default;
+    }
+
+    private static function executeFonntePost(string $token, array $postData): array
+    {
+        self::$lastError = null;
+        self::$lastResponse = null;
+
+        if (function_exists('curl_init')) {
+            try {
+                $ch = curl_init('https://api.fonnte.com/send');
+                curl_setopt_array($ch, [
+                    CURLOPT_POST           => true,
+                    CURLOPT_POSTFIELDS     => http_build_query($postData),
+                    CURLOPT_HTTPHEADER     => [
+                        'Authorization: ' . $token,
+                    ],
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_SSL_VERIFYHOST => 0,
+                    CURLOPT_TIMEOUT        => 15,
+                    CURLOPT_CONNECTTIMEOUT => 10,
+                ]);
+
+                $raw = curl_exec($ch);
+                $err = curl_error($ch);
+                $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($raw !== false && !empty($raw)) {
+                    $json = json_decode($raw, true);
+                    self::$lastResponse = $json ?: ['raw' => $raw];
+
+                    $isSuccess = ($code >= 200 && $code < 300) && ($json['status'] ?? false);
+                    if (!$isSuccess) {
+                        self::$lastError = $json['reason'] ?? $json['detail'] ?? ("HTTP " . $code . ": " . $raw);
+                    }
+
+                    return [
+                        'status'   => $isSuccess,
+                        'response' => $json ?: $raw,
+                        'http_code'=> $code,
+                    ];
+                }
+
+                if (!empty($err)) {
+                    self::$lastError = 'cURL Error: ' . $err;
+                }
+            } catch (\Throwable $eCurl) {
+                self::$lastError = 'cURL Exception: ' . $eCurl->getMessage();
+            }
+        }
+
+        try {
+            if (class_exists(\Illuminate\Support\Facades\Http::class)) {
+                $response = \Illuminate\Support\Facades\Http::withHeaders([
+                    'Authorization' => $token,
+                ])->asForm()->post('https://api.fonnte.com/send', $postData);
+
+                $json = $response->json();
+                self::$lastResponse = $json;
+
+                $isSuccess = $response->successful() && ($json['status'] ?? false);
+                if (!$isSuccess) {
+                    self::$lastError = $json['reason'] ?? $json['detail'] ?? ('HTTP ' . $response->status());
+                }
+
+                return [
+                    'status'   => $isSuccess,
+                    'response' => $json,
+                ];
+            }
+        } catch (\Throwable $eHttp) {
+            self::$lastError = 'Http Facade Error: ' . $eHttp->getMessage();
+        }
+
+        return [
+            'status' => false,
+            'error'  => self::$lastError ?: 'Gagal menghubungi Fonnte API',
+        ];
+    }
+
+    public static function sendPaymentNotification(mixed $transaksi): array
+    {
+        $token = self::getEnvValue('FONNTE_TOKEN', 'Y1vmkxaWWRXVsatHp3aG');
+        if (empty($token)) {
+            return ['status' => false, 'reason' => 'FONNTE_TOKEN is empty'];
+        }
+
+        $userId      = is_array($transaksi) ? ($transaksi['user_id'] ?? null) : ($transaksi->user_id ?? null);
+        $userEmail   = is_array($transaksi) ? ($transaksi['userEmail'] ?? null) : ($transaksi->userEmail ?? null);
+        $userName    = is_array($transaksi) ? ($transaksi['userName'] ?? null) : ($transaksi->userName ?? null);
+        $userPhone   = is_array($transaksi) ? ($transaksi['userPhone'] ?? '') : ($transaksi->userPhone ?? '');
+        $invoiceId   = is_array($transaksi) ? ($transaksi['invoiceId'] ?? '-') : ($transaksi->invoiceId ?? '-');
+        $referenceId = is_array($transaksi) ? ($transaksi['referenceId'] ?? '-') : ($transaksi->referenceId ?? '-');
+        $waterType   = is_array($transaksi) ? ($transaksi['water_type'] ?? 'Air') : ($transaksi->water_type ?? 'Air');
+        $volumeMl    = is_array($transaksi) ? ($transaksi['volume_ml'] ?? 0) : ($transaksi->volume_ml ?? 0);
+        $payAmount   = is_array($transaksi) ? ($transaksi['payAmount'] ?? 0) : ($transaksi->payAmount ?? 0);
+        $kioskId     = is_array($transaksi) ? ($transaksi['kiosk_id'] ?? null) : ($transaksi->kiosk_id ?? null);
+        $kioskName   = is_array($transaksi) ? ($transaksi['kiosk_name'] ?? null) : ($transaksi->kiosk->name ?? null);
+
+        $userObj = null;
+        if (!empty($userId)) {
+            try { $userObj = \App\Models\User::find($userId); } catch (\Throwable $e) {}
+        }
+        if (!$userObj && !empty($userEmail)) {
+            try { $userObj = \App\Models\User::where('email', $userEmail)->first(); } catch (\Throwable $e) {}
+        }
+        if (!$userObj && function_exists('auth') && auth()->check()) {
+            $userObj = auth()->user();
+        }
+
+        if (empty($userName) || str_starts_with((string)$userName, 'Pengunjung Tamu') || $userName === 'Pengunjung Kios') {
+            $userName = $userObj?->name ?? ($userName ?: 'Pelanggan');
+        }
+
+        if (empty($userPhone) || in_array($userPhone, ['0812000000', '08123456789', '081234567890', '-'])) {
+            $userPhone = $userObj?->phone ?? $userPhone;
+        }
+
+        $waterLabel = match (strtoupper((string) $waterType)) {
+            'COLD', 'DINGIN' => 'Air Dingin ❄️',
+            'HOT', 'PANAS'   => 'Air Panas ☕',
+            default          => 'Air Normal 💧',
+        };
+
+        $kioskLabel = $kioskName ? "{$kioskName} ({$kioskId})" : ($kioskId ? "Kios {$kioskId}" : 'Fresh Hydration Kiosk');
+        $amountFormatted = 'Rp ' . number_format((float) $payAmount, 0, ',', '.');
+        $timeFormatted = date('d/m/Y H:i') . ' WIB';
+
+        $message = "💧 *PEMBAYARAN BERHASIL - FRESH HYDRATION KIOSK* 💧\n\n"
+            . "Halo *{$userName}*,\n"
+            . "Pembayaran pesanan air minum Anda telah kami terima dan diverifikasi.\n\n"
+            . "📋 *Detail Transaksi:*\n"
+            . "• *No. Invoice* : `{$invoiceId}`\n"
+            . "• *Ref ID*      : `{$referenceId}`\n"
+            . "• *Menu Air*    : {$waterLabel}\n"
+            . "• *Volume*      : {$volumeMl} ml\n"
+            . "• *Total Bayar* : *{$amountFormatted}*\n"
+            . "• *Lokasi Kios* : {$kioskLabel}\n"
+            . "• *Waktu*       : {$timeFormatted}\n"
+            . "• *Status*      : *LUNAS (PAID)* ✅\n\n"
+            . "Silakan ambil air Anda pada dispenser kios.\n"
+            . "Terima kasih telah menggunakan Fresh Hydration Kiosk! 🌿";
+
+        $targets = [];
+        $cleanTxPhone = preg_replace('/[^0-9]/', '', (string) $userPhone);
+        if (!empty($cleanTxPhone) && !in_array($cleanTxPhone, ['0812000000', '08123456789', '081234567890', '081200000000', '0'])) {
+            $targets[] = $cleanTxPhone;
+        }
+
+        if ($userObj && !empty($userObj->phone)) {
+            $cleanUserPhone = preg_replace('/[^0-9]/', '', (string) $userObj->phone);
+            if (!empty($cleanUserPhone) && !in_array($cleanUserPhone, ['0812000000', '08123456789', '081234567890', '081200000000', '0'])) {
+                $targets[] = $cleanUserPhone;
+            }
+        }
+
+        $adminPhone = self::getEnvValue('FONNTE_TARGET', '');
+        if (!empty($adminPhone)) {
+            $adminClean = preg_replace('/[^0-9]/', '', (string) $adminPhone);
+            if (!empty($adminClean)) {
+                $targets[] = $adminClean;
+            }
+        }
+
+        $targets = array_unique(array_filter($targets));
+
+        if (empty($targets)) {
+            return ['status' => false, 'reason' => 'No target phone number'];
+        }
+
+        $targetStr = implode(',', $targets);
+
+        $res = self::executeFonntePost($token, [
+            'target'      => $targetStr,
+            'message'     => $message,
+            'countryCode' => '62',
+        ]);
+
+        return $res;
+    }
+
+    public static function sendMessage(string $target, string $message): array
+    {
+        $token = self::getEnvValue('FONNTE_TOKEN', 'Y1vmkxaWWRXVsatHp3aG');
+        if (empty($token)) {
+            return ['status' => false, 'reason' => 'FONNTE_TOKEN is empty'];
+        }
+
+        $cleanTarget = preg_replace('/[^0-9]/', '', $target);
+        if (empty($cleanTarget)) {
+            return ['status' => false, 'reason' => 'Target number is empty'];
+        }
+
+        return self::executeFonntePost($token, [
+            'target'      => $cleanTarget,
+            'message'     => $message,
+            'countryCode' => '62',
+        ]);
+    }
+}
+PHP;
+
+file_put_contents($baseDir . '/app/Services/FonnteService.php', $fullFonnteServiceCode);
+
+// 4e. Overwrite app/Models/Transaksi.php dengan hook notifikasi aman
+$fullTransaksiModelCode = <<<'PHP'
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Transaksi extends Model
+{
+    protected $table = 'transaksi';
+    protected $primaryKey = 'invoiceId';
+    protected $keyType = 'string';
+    public $incrementing = false;
+
+    protected $fillable = [
+        'invoiceId',
+        'referenceId',
+        'kiosk_id',
+        'user_id',
+        'voucher_id',
+        'guest_token',
+        'userName',
+        'userEmail',
+        'userPhone',
+        'water_type',
+        'volume_ml',
+        'payAmount',
+        'original_amount',
+        'discount_amount',
+        'aiyo_access_token',
+        'status',
+        'redemption_token_hash',
+        'redemption_token_encrypted',
+        'redemption_expires_at',
+        'redeemed_at',
+        'remarks',
+        'items',
+        'qr_content',
+        'invoice_url',
+        'dispense_started_at',
+        'dispense_completed_at',
+        'timestamp',
+    ];
+
+    protected $casts = [
+        'payAmount' => 'integer',
+        'original_amount' => 'integer',
+        'discount_amount' => 'integer',
+        'volume_ml' => 'integer',
+        'items' => 'array',
+        'dispense_started_at' => 'datetime',
+        'dispense_completed_at' => 'datetime',
+        'timestamp' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'redemption_expires_at' => 'datetime',
+        'redeemed_at' => 'datetime',
+    ];
+
+    protected static function booted(): void
+    {
+        static::updated(function (Transaksi $transaksi) {
+            if ($transaksi->wasChanged('status')) {
+                $newStatus = strtoupper((string) $transaksi->status);
+                $oldStatus = strtoupper((string) $transaksi->getOriginal('status'));
+
+                if (in_array($newStatus, ['PAID', 'AWAITING_KIOSK_SCAN'], true) 
+                    && !in_array($oldStatus, ['PAID', 'AWAITING_KIOSK_SCAN', 'DISPENSING', 'COMPLETED'], true)) {
+                    try {
+                        if (class_exists(\App\Services\FonnteService::class)) {
+                            \App\Services\FonnteService::sendPaymentNotification($transaksi);
+                        }
+                    } catch (\Throwable $e) {}
+                    try {
+                        if (class_exists(\App\Services\EmailNotificationService::class)) {
+                            \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+                        }
+                    } catch (\Throwable $e) {}
+                }
+
+                if (in_array($newStatus, ['EXPIRED', 'CANCELLED'], true) 
+                    && in_array($oldStatus, ['PENDING', 'NEW', 'UNPAID'], true)) {
+                    try {
+                        if (class_exists(\App\Services\EmailNotificationService::class)) {
+                            \App\Services\EmailNotificationService::sendUnpaidExpiredEmail($transaksi);
+                        }
+                    } catch (\Throwable $e) {}
+                }
+            }
+        });
+
+        static::created(function (Transaksi $transaksi) {
+            $status = strtoupper((string) $transaksi->status);
+            if (in_array($status, ['PAID', 'AWAITING_KIOSK_SCAN'], true)) {
+                try {
+                    if (class_exists(\App\Services\FonnteService::class)) {
+                        \App\Services\FonnteService::sendPaymentNotification($transaksi);
+                    }
+                } catch (\Throwable $e) {}
+                try {
+                    if (class_exists(\App\Services\EmailNotificationService::class)) {
+                        \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+                    }
+                } catch (\Throwable $e) {}
+            }
+        });
+    }
+
+    public function kiosk(): BelongsTo
+    {
+        return $this->belongsTo(Kiosk::class, 'kiosk_id', 'id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+}
+PHP;
+
+file_put_contents($baseDir . '/app/Models/Transaksi.php', $fullTransaksiModelCode);
+
+// 4f. Tambah kolom phone ke database.sqlite & sinkronkan nomor HP ke tabel transaksi
 $sqliteDb = $baseDir . '/database/database.sqlite';
 if (file_exists($sqliteDb)) {
     try {
@@ -736,10 +1098,16 @@ if (file_exists($sqliteDb)) {
         if (!$hasCol) {
             $p->exec("ALTER TABLE users ADD COLUMN phone VARCHAR(30) NULL");
         }
+
+        // Simpan nomor HP default untuk akun Lauren Xue jika belum ada
+        $p->exec("UPDATE users SET phone = '085800661438' WHERE (phone IS NULL OR phone = '') AND (email = '24n40009@student.unika.ac.id' OR name LIKE '%Lauren%')");
+
+        // Sinkronkan nomor WhatsApp ke riwayat transaksi yang nomornya masih kosong
+        $p->exec("UPDATE transaksi SET userPhone = '085800661438' WHERE (userPhone IS NULL OR userPhone = '' OR userPhone LIKE '08120000%') AND (userEmail = '24n40009@student.unika.ac.id' OR userName LIKE '%Lauren%' OR user_id IN (SELECT id FROM users WHERE email = '24n40009@student.unika.ac.id'))");
     } catch (\Throwable $eSqlite) {}
 }
 
-// 4e. Perbaiki routes/web.php & kiosk_layout.blade.php agar route 'home' & 'kios' tidak ter-overwrite oleh route admin
+// 4g. Perbaiki file controllers, routing, dan views
 $webRoutesFile = $baseDir . '/routes/web.php';
 if (file_exists($webRoutesFile)) {
     $webRoutesContent = file_get_contents($webRoutesFile);
@@ -772,6 +1140,17 @@ if (file_exists($kioskLayoutFile)) {
     file_put_contents($kioskLayoutFile, $kioskLayoutContent);
 }
 
+$kioskIndexFile = $baseDir . '/resources/views/kiosk/index.blade.php';
+if (file_exists($kioskIndexFile)) {
+    $kioskIndexContent = file_get_contents($kioskIndexFile);
+    $kioskIndexContent = str_replace(
+        "user_phone:  userPhone || undefined,",
+        "user_phone:  (userPhone || \"{{ auth()->user()->phone ?? '' }}\") || undefined,",
+        $kioskIndexContent
+    );
+    file_put_contents($kioskIndexFile, $kioskIndexContent);
+}
+
 $loginBladeFile = $baseDir . '/resources/views/auth/login.blade.php';
 if (file_exists($loginBladeFile)) {
     $loginBladeContent = file_get_contents($loginBladeFile);
@@ -794,6 +1173,35 @@ if (file_exists($authCtrlFile)) {
     file_put_contents($authCtrlFile, $authCtrlContent);
 }
 
+$orderCtrlFile = $baseDir . '/app/Http/Controllers/Kiosk/OrderController.php';
+if (file_exists($orderCtrlFile)) {
+    $orderCtrlContent = file_get_contents($orderCtrlFile);
+    $orderCtrlContent = str_replace(
+        "\$transaksi->update(['status' => 'PAID']); \$this->preparePickup(\$transaksi);",
+        "\$transaksi->update(['status' => 'PAID']); \$this->preparePickup(\$transaksi); try { \\App\\Services\\FonnteService::sendPaymentNotification(\$transaksi); \\App\\Services\\EmailNotificationService::sendPaymentEmail(\$transaksi); } catch (\\Throwable \$e) {}",
+        $orderCtrlContent
+    );
+    $orderCtrlContent = str_replace(
+        "if (\$transaksi->redemption_token_hash) return;",
+        "if (\$transaksi->redemption_token_hash) { try { \\App\\Services\\FonnteService::sendPaymentNotification(\$transaksi); } catch (\\Throwable \$e) {} return; }",
+        $orderCtrlContent
+    );
+    file_put_contents($orderCtrlFile, $orderCtrlContent);
+}
+
+$aiyoCbFile = $baseDir . '/app/Http/Controllers/Payment/AiyoCallbackController.php';
+if (file_exists($aiyoCbFile)) {
+    $aiyoCbContent = file_get_contents($aiyoCbFile);
+    if (!str_contains($aiyoCbContent, 'FonnteService::sendPaymentNotification')) {
+        $aiyoCbContent = str_replace(
+            "Log::info('AiYO Callback SUCCESS: Pembayaran Berhasil Diproses', [",
+            "try { \\App\\Services\\FonnteService::sendPaymentNotification(\$transaksi); \\App\\Services\\EmailNotificationService::sendPaymentEmail(\$transaksi); } catch (\\Throwable \$eNotify) {}\n            Log::info('AiYO Callback SUCCESS: Pembayaran Berhasil Diproses', [",
+            $aiyoCbContent
+        );
+        file_put_contents($aiyoCbFile, $aiyoCbContent);
+    }
+}
+
 // 5. Bersihkan view cache Blade & bootstrap route cache
 $views = glob($baseDir . '/storage/framework/views/*.php');
 $del = 0;
@@ -809,19 +1217,21 @@ if ($bCaches) {
     }
 }
 
-// 6. Muat service dan jalankan dispatch email
+// 6. Muat service dan jalankan dispatch email & WhatsApp Fonnte
 require_once $baseDir . '/app/Services/EmailNotificationService.php';
+require_once $baseDir . '/app/Services/FonnteService.php';
 
 $dbPath = $baseDir . '/database/database.sqlite';
 $tx = null;
 $emailResult = false;
+$fonnteResult = null;
 $userEmailTarget = null;
 $phpmailerAvailable = class_exists(\PHPMailer\PHPMailer\PHPMailer::class);
 
 if (file_exists($dbPath)) {
     try {
         $pdo = new PDO("sqlite:" . $dbPath);
-        $stmt = $pdo->query("SELECT * FROM transaksi WHERE invoiceId IN ('fjznYigRzZllJn8Y02AX', 'KMZKLwyk5QtBXbavXl3J', 'IlNAftim8HAbvcUPcxWM', 'seSdyAVfwS3zLUxe8SKq') OR status IN ('PAID', 'AWAITING_KIOSK_SCAN', 'SUCCESS') ORDER BY updated_at DESC LIMIT 1");
+        $stmt = $pdo->query("SELECT * FROM transaksi WHERE invoiceId IN ('5ZEmXacJZuYqgzX3vWa4', 'fjznYigRzZllJn8Y02AX', 'KMZKLwyk5QtBXbavXl3J', 'IlNAftim8HAbvcUPcxWM', 'seSdyAVfwS3zLUxe8SKq') OR status IN ('PAID', 'AWAITING_KIOSK_SCAN', 'SUCCESS') ORDER BY updated_at DESC LIMIT 1");
         $row = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : null;
         if ($row) {
             $tx = (object) $row;
@@ -829,8 +1239,9 @@ if (file_exists($dbPath)) {
                 $userStmt = $pdo->prepare("SELECT * FROM users WHERE id = ? LIMIT 1");
                 $userStmt->execute([$tx->user_id]);
                 $uRow = $userStmt->fetch(PDO::FETCH_ASSOC);
-                if ($uRow && !empty($uRow['email'])) {
-                    $tx->userEmail = $uRow['email'];
+                if ($uRow) {
+                    if (!empty($uRow['email'])) $tx->userEmail = $uRow['email'];
+                    if (!empty($uRow['phone'])) $tx->userPhone = $uRow['phone'];
                     $tx->userName = $uRow['name'] ?? $tx->userName;
                 }
             }
@@ -842,23 +1253,28 @@ if (file_exists($dbPath)) {
 
 if (!$tx) {
     $tx = (object) [
-        'invoiceId'   => 'fjznYigRzZllJn8Y02AX',
+        'invoiceId'   => '5ZEmXacJZuYqgzX3vWa4',
         'referenceId' => 'FHK-REF-' . time(),
-        'water_type'  => 'COLD',
-        'volume_ml'   => 600,
+        'water_type'  => 'NORMAL',
+        'volume_ml'   => 250,
         'payAmount'   => 1,
-        'userEmail'   => '24n40004@student.unika.ac.id',
-        'userName'    => 'Pelanggan FHK',
-        'kiosk_id'    => 'FHK-001',
+        'userEmail'   => '24n40009@student.unika.ac.id',
+        'userName'    => 'Lauren xue',
+        'userPhone'   => '085800661438',
+        'kiosk_id'    => 'FHK-JAKARTA-01',
     ];
 }
 
 if (empty($tx->userEmail) || str_ends_with($tx->userEmail, '@fhk.id') || $tx->userEmail === 'customer@fhk.id') {
-    $tx->userEmail = '24n40004@student.unika.ac.id';
+    $tx->userEmail = '24n40009@student.unika.ac.id';
+}
+if (empty($tx->userPhone) || in_array($tx->userPhone, ['0812000000', '08123456789', '081234567890', '-'])) {
+    $tx->userPhone = '085800661438';
 }
 
 $userEmailTarget = $tx->userEmail;
 $emailResult = \App\Services\EmailNotificationService::sendPaymentEmail($tx);
+$fonnteResult = \App\Services\FonnteService::sendPaymentNotification($tx);
 
 header('Content-Type: application/json; charset=utf-8');
 echo json_encode([
@@ -869,10 +1285,13 @@ echo json_encode([
     'views_cache_deleted' => $del,
     'dispatched_invoice'  => $tx ? $tx->invoiceId : null,
     'recipient_email'     => $userEmailTarget,
+    'recipient_phone'     => $tx ? ($tx->userPhone ?? null) : null,
     'email_sent'          => $emailResult,
+    'fonnte_result'       => $fonnteResult,
+    'fonnte_last_error'   => \App\Services\FonnteService::$lastError,
     'debug_logs'          => \App\Services\EmailNotificationService::$debugLogs,
     'last_error'          => \App\Services\EmailNotificationService::$lastError,
-    'message'             => $emailResult 
-        ? 'Email bukti pembayaran BERHASIL dikirimkan ke kotak masuk!' 
-        : 'Percobaan pengiriman selesai, periksa log debug di atas.'
+    'message'             => ($fonnteResult['status'] ?? false)
+        ? 'Pembaruan berhasil dan notifikasi WhatsApp Fonnte BERHASIL dikirim ke ' . $tx->userPhone . '!' 
+        : 'Pembaruan berhasil diterapkan, silakan periksa status pengiriman Fonnte.'
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);

@@ -29,6 +29,9 @@ $filesToSync = [
     "app/Models/KioskPricing.php",
     "app/Http/Controllers/Admin/PricingController.php",
     "resources/views/admin/pricing.blade.php",
+    "resources/views/auth/login.blade.php",
+    "app/Http/Controllers/ProfileController.php",
+    "app/Models/User.php",
     "config/services.php"
 ];
 

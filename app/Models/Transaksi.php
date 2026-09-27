@@ -67,14 +67,26 @@ class Transaksi extends Model
                 // Kirim notifikasi WhatsApp & Email saat status berpindah menjadi Lunas (PAID / AWAITING_KIOSK_SCAN)
                 if (in_array($newStatus, ['PAID', 'AWAITING_KIOSK_SCAN'], true) 
                     && !in_array($oldStatus, ['PAID', 'AWAITING_KIOSK_SCAN', 'DISPENSING', 'COMPLETED'], true)) {
-                    \App\Services\FonnteService::sendPaymentNotification($transaksi);
-                    \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+                    try {
+                        if (class_exists(\App\Services\FonnteService::class)) {
+                            \App\Services\FonnteService::sendPaymentNotification($transaksi);
+                        }
+                    } catch (\Throwable $e) {}
+                    try {
+                        if (class_exists(\App\Services\EmailNotificationService::class)) {
+                            \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+                        }
+                    } catch (\Throwable $e) {}
                 }
 
                 // Kirim notifikasi Email saat tagihan tidak terbayar dan kedaluwarsa (EXPIRED / CANCELLED)
                 if (in_array($newStatus, ['EXPIRED', 'CANCELLED'], true) 
                     && in_array($oldStatus, ['PENDING', 'NEW', 'UNPAID'], true)) {
-                    \App\Services\EmailNotificationService::sendUnpaidExpiredEmail($transaksi);
+                    try {
+                        if (class_exists(\App\Services\EmailNotificationService::class)) {
+                            \App\Services\EmailNotificationService::sendUnpaidExpiredEmail($transaksi);
+                        }
+                    } catch (\Throwable $e) {}
                 }
             }
         });
@@ -82,8 +94,16 @@ class Transaksi extends Model
         static::created(function (Transaksi $transaksi) {
             $status = strtoupper((string) $transaksi->status);
             if (in_array($status, ['PAID', 'AWAITING_KIOSK_SCAN'], true)) {
-                \App\Services\FonnteService::sendPaymentNotification($transaksi);
-                \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+                try {
+                    if (class_exists(\App\Services\FonnteService::class)) {
+                        \App\Services\FonnteService::sendPaymentNotification($transaksi);
+                    }
+                } catch (\Throwable $e) {}
+                try {
+                    if (class_exists(\App\Services\EmailNotificationService::class)) {
+                        \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+                    }
+                } catch (\Throwable $e) {}
             }
         });
     }

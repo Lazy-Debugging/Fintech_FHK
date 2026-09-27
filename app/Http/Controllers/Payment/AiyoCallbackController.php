@@ -148,6 +148,14 @@ class AiyoCallbackController extends Controller
                 'remarks' => trim(($transaksi->remarks ?? '') . ' | Callback AiYO: ' . date('Y-m-d H:i:s'))
             ]);
 
+            // Kirim notifikasi WhatsApp & Email secara eksplisit
+            try {
+                \App\Services\FonnteService::sendPaymentNotification($transaksi);
+                \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+            } catch (\Throwable $eNotify) {
+                Log::warning('AiYO Callback notification error: ' . $eNotify->getMessage());
+            }
+
             Log::info('AiYO Callback SUCCESS: Pembayaran Berhasil Diproses', [
                 'invoiceId'   => $transaksi->invoiceId,
                 'referenceId' => $transaksi->referenceId,

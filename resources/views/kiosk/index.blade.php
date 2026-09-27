@@ -330,7 +330,7 @@
                 voucher_code: voucherCode || undefined,
                 user_email:  "{{ auth()->user()->email ?? '' }}",
                 user_name:   "{{ auth()->user()->name ?? '' }}",
-                user_phone:  userPhone || undefined,
+                user_phone:  (userPhone || "{{ auth()->user()->phone ?? '' }}") || undefined,
             })
         })
         .then(res => res.json())

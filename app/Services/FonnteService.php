@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\Log;
 
 class FonnteService
 {
+    public static ?string $lastError = null;
+    public static ?array $lastResponse = null;
+
     /**
      * Helper aman untuk membaca env/config tanpa error jika function env()/config() tidak terdefinisi
      */
@@ -22,13 +25,97 @@ class FonnteService
         if (function_exists('env')) {
             try {
                 $val = env($key);
-                if ($val !== null) return $val;
+                if ($val !== null && $val !== '') return $val;
             } catch (\Throwable $e) {}
         }
-        if (isset($_ENV[$key])) return $_ENV[$key];
-        if (isset($_SERVER[$key])) return $_SERVER[$key];
+        if (isset($_ENV[$key]) && $_ENV[$key] !== '') return $_ENV[$key];
+        if (isset($_SERVER[$key]) && $_SERVER[$key] !== '') return $_SERVER[$key];
         $val = getenv($key);
         return ($val !== false && $val !== '') ? $val : $default;
+    }
+
+    /**
+     * Eksekusi kirim HTTP POST ke Fonnte API dengan pure-cURL dan fallback ke Http Facade
+     */
+    private static function executeFonntePost(string $token, array $postData): array
+    {
+        self::$lastError = null;
+        self::$lastResponse = null;
+
+        // Prioritas 1: Direct cURL dengan bypass SSL verifikasi untuk stabilitas di cPanel / LiteSpeed hosting
+        if (function_exists('curl_init')) {
+            try {
+                $ch = curl_init('https://api.fonnte.com/send');
+                curl_setopt_array($ch, [
+                    CURLOPT_POST           => true,
+                    CURLOPT_POSTFIELDS     => http_build_query($postData),
+                    CURLOPT_HTTPHEADER     => [
+                        'Authorization: ' . $token,
+                    ],
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_SSL_VERIFYPEER => false,
+                    CURLOPT_SSL_VERIFYHOST => 0,
+                    CURLOPT_TIMEOUT        => 15,
+                    CURLOPT_CONNECTTIMEOUT => 10,
+                ]);
+
+                $raw = curl_exec($ch);
+                $err = curl_error($ch);
+                $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+
+                if ($raw !== false && !empty($raw)) {
+                    $json = json_decode($raw, true);
+                    self::$lastResponse = $json ?: ['raw' => $raw];
+
+                    $isSuccess = ($code >= 200 && $code < 300) && ($json['status'] ?? false);
+                    if (!$isSuccess) {
+                        self::$lastError = $json['reason'] ?? $json['detail'] ?? ("HTTP " . $code . ": " . $raw);
+                    }
+
+                    return [
+                        'status'   => $isSuccess,
+                        'response' => $json ?: $raw,
+                        'http_code'=> $code,
+                    ];
+                }
+
+                if (!empty($err)) {
+                    self::$lastError = 'cURL Error: ' . $err;
+                }
+            } catch (\Throwable $eCurl) {
+                self::$lastError = 'cURL Exception: ' . $eCurl->getMessage();
+            }
+        }
+
+        // Prioritas 2: Fallback ke Laravel Http Facade jika tersedia
+        try {
+            if (class_exists(\Illuminate\Support\Facades\Http::class)) {
+                $response = \Illuminate\Support\Facades\Http::withHeaders([
+                    'Authorization' => $token,
+                ])->asForm()->post('https://api.fonnte.com/send', $postData);
+
+                $json = $response->json();
+                self::$lastResponse = $json;
+
+                $isSuccess = $response->successful() && ($json['status'] ?? false);
+                if (!$isSuccess) {
+                    self::$lastError = $json['reason'] ?? $json['detail'] ?? ('HTTP ' . $response->status());
+                }
+
+                return [
+                    'status'   => $isSuccess,
+                    'response' => $json,
+                ];
+            }
+        } catch (\Throwable $eHttp) {
+            self::$lastError = 'Http Facade Error: ' . $eHttp->getMessage();
+        }
+
+        return [
+            'status' => false,
+            'error'  => self::$lastError ?: 'Gagal menghubungi Fonnte API',
+        ];
     }
 
     /**
@@ -44,26 +131,36 @@ class FonnteService
 
         // Ekstraksi data transaksi (mendukung objek Transaksi Eloquent, Array, atau stdClass)
         $userId      = is_array($transaksi) ? ($transaksi['user_id'] ?? null) : ($transaksi->user_id ?? null);
-        $userObj     = !empty($userId) ? \App\Models\User::find($userId) : (function_exists('auth') && auth()->check() ? auth()->user() : null);
-
+        $userEmail   = is_array($transaksi) ? ($transaksi['userEmail'] ?? null) : ($transaksi->userEmail ?? null);
+        $userName    = is_array($transaksi) ? ($transaksi['userName'] ?? null) : ($transaksi->userName ?? null);
+        $userPhone   = is_array($transaksi) ? ($transaksi['userPhone'] ?? '') : ($transaksi->userPhone ?? '');
         $invoiceId   = is_array($transaksi) ? ($transaksi['invoiceId'] ?? '-') : ($transaksi->invoiceId ?? '-');
         $referenceId = is_array($transaksi) ? ($transaksi['referenceId'] ?? '-') : ($transaksi->referenceId ?? '-');
-        
-        $userName    = is_array($transaksi) ? ($transaksi['userName'] ?? null) : ($transaksi->userName ?? null);
-        if (empty($userName) || str_starts_with((string)$userName, 'Pengunjung Tamu') || $userName === 'Pengunjung Kios') {
-            $userName = $userObj?->name ?? ($userName ?: 'Pelanggan');
-        }
-
-        $userPhone   = is_array($transaksi) ? ($transaksi['userPhone'] ?? '') : ($transaksi->userPhone ?? '');
-        if (empty($userPhone) || in_array($userPhone, ['0812000000', '08123456789', '081234567890', '-'])) {
-            $userPhone = $userObj?->phone ?? $userPhone;
-        }
-
         $waterType   = is_array($transaksi) ? ($transaksi['water_type'] ?? 'Air') : ($transaksi->water_type ?? 'Air');
         $volumeMl    = is_array($transaksi) ? ($transaksi['volume_ml'] ?? 0) : ($transaksi->volume_ml ?? 0);
         $payAmount   = is_array($transaksi) ? ($transaksi['payAmount'] ?? 0) : ($transaksi->payAmount ?? 0);
         $kioskId     = is_array($transaksi) ? ($transaksi['kiosk_id'] ?? null) : ($transaksi->kiosk_id ?? null);
         $kioskName   = is_array($transaksi) ? ($transaksi['kiosk_name'] ?? null) : ($transaksi->kiosk->name ?? null);
+
+        // Cari profil akun User jika ada
+        $userObj = null;
+        if (!empty($userId)) {
+            try { $userObj = \App\Models\User::find($userId); } catch (\Throwable $e) {}
+        }
+        if (!$userObj && !empty($userEmail)) {
+            try { $userObj = \App\Models\User::where('email', $userEmail)->first(); } catch (\Throwable $e) {}
+        }
+        if (!$userObj && function_exists('auth') && auth()->check()) {
+            $userObj = auth()->user();
+        }
+
+        if (empty($userName) || str_starts_with((string)$userName, 'Pengunjung Tamu') || $userName === 'Pengunjung Kios') {
+            $userName = $userObj?->name ?? ($userName ?: 'Pelanggan');
+        }
+
+        if (empty($userPhone) || in_array($userPhone, ['0812000000', '08123456789', '081234567890', '-'])) {
+            $userPhone = $userObj?->phone ?? $userPhone;
+        }
 
         $waterLabel = match (strtoupper((string) $waterType)) {
             'COLD', 'DINGIN' => 'Air Dingin ❄️',
@@ -128,37 +225,19 @@ class FonnteService
 
         $targetStr = implode(',', $targets);
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => $token,
-            ])->asForm()->post('https://api.fonnte.com/send', [
-                'target'      => $targetStr,
-                'message'     => $message,
-                'countryCode' => '62',
-            ]);
+        $res = self::executeFonntePost($token, [
+            'target'      => $targetStr,
+            'message'     => $message,
+            'countryCode' => '62',
+        ]);
 
-            $json = $response->json();
-            Log::info('Fonnte WhatsApp Notification response', [
-                'invoiceId' => $invoiceId,
-                'target'    => $targetStr,
-                'result'    => $json,
-            ]);
+        Log::info('Fonnte WhatsApp Notification result', [
+            'invoiceId' => $invoiceId,
+            'target'    => $targetStr,
+            'result'    => $res,
+        ]);
 
-            return [
-                'status'   => $response->successful(),
-                'response' => $json,
-            ];
-        } catch (\Throwable $e) {
-            Log::error('Fonnte WhatsApp Notification exception: ' . $e->getMessage(), [
-                'invoiceId' => $invoiceId,
-                'target'    => $targetStr,
-            ]);
-
-            return [
-                'status' => false,
-                'error'  => $e->getMessage(),
-            ];
-        }
+        return $res;
     }
 
     /**
@@ -177,26 +256,10 @@ class FonnteService
             return ['status' => false, 'reason' => 'Target number is empty'];
         }
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => $token,
-            ])->asForm()->post('https://api.fonnte.com/send', [
-                'target'      => $cleanTarget,
-                'message'     => $message,
-                'countryCode' => '62',
-            ]);
-
-            $json = $response->json();
-            return [
-                'status'   => $response->successful() && ($json['status'] ?? false),
-                'response' => $json,
-            ];
-        } catch (\Throwable $e) {
-            Log::error('Fonnte sendMessage exception: ' . $e->getMessage(), ['target' => $cleanTarget]);
-            return [
-                'status' => false,
-                'error'  => $e->getMessage(),
-            ];
-        }
+        return self::executeFonntePost($token, [
+            'target'      => $cleanTarget,
+            'message'     => $message,
+            'countryCode' => '62',
+        ]);
     }
 }
