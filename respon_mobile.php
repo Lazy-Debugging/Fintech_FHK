@@ -159,10 +159,48 @@ if ($resObj && isset($resObj->responseCode) && $resObj->responseCode === '200000
     }
 }
 
-// 7. Kembalikan response JSON ke MIT App Inventor
+// 7. Ambil info invoice utama & dukung mode Auto-Redirect
+$invoiceData = $resObj->responseData ?? null;
+$invoiceURL  = $invoiceData->invoiceURL ?? null;
+$invoiceId   = $invoiceData->invoiceId ?? null;
+$vaNumber    = $invoiceData->paymentMethod->paymentAccountNumber ?? null;
+
+// Cek apakah request meminta auto-redirect (misal dari WebViewer, browser, atau parameter redirect=1)
+$isAutoRedirect = isset($_REQUEST['redirect']) && in_array(strtolower((string)$_REQUEST['redirect']), ['1', 'true', 'yes'], true);
+
+if ($isAutoRedirect && !empty($invoiceURL)) {
+    // Mode Auto-Redirect: Langsung buka URL invoice AiYO di browser / tab baru
+    header("Location: " . $invoiceURL);
+    echo '<!DOCTYPE html><html><head><meta charset="utf-8">';
+    echo '<title>Membuka Invoice AiYO...</title>';
+    echo '<meta http-equiv="refresh" content="0;url=' . htmlspecialchars($invoiceURL) . '">';
+    echo '<script>window.location.href = "' . addslashes($invoiceURL) . '";</script>';
+    echo '</head><body>';
+    echo '<p>Membuka invoice pembayaran... Jika tidak terbuka otomatis, <a href="' . htmlspecialchars($invoiceURL) . '" target="_blank">klik di sini</a>.</p>';
+    echo '</body></html>';
+    exit;
+}
+
+// 8. Kembalikan response JSON ke MIT App Inventor
 header('Content-Type: application/json; charset=utf-8');
 if ($responseCreateInvoice !== false && !empty($responseCreateInvoice)) {
-    echo $responseCreateInvoice;
+    if ($resObj && isset($resObj->responseCode)) {
+        // Enriched JSON: sertakan invoiceURL, url, invoiceId, vaNumber di level teratas
+        // agar MIT App Inventor bisa langsung ambil nilainya tanpa perlu traversal nested key yang rumit
+        $enrichedResponse = [
+            'responseCode'    => $resObj->responseCode,
+            'responseMessage' => $resObj->responseMessage ?? 'Success',
+            'invoiceURL'      => $invoiceURL,
+            'invoiceUrl'      => $invoiceURL,
+            'url'             => $invoiceURL,
+            'invoiceId'       => $invoiceId,
+            'vaNumber'        => $vaNumber,
+            'responseData'    => $invoiceData
+        ];
+        echo json_encode($enrichedResponse, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    } else {
+        echo $responseCreateInvoice;
+    }
 } else {
     echo json_encode([
         'responseCode'    => '5000000',
@@ -170,3 +208,4 @@ if ($responseCreateInvoice !== false && !empty($responseCreateInvoice)) {
         'httpCode'        => $httpCode
     ], JSON_PRETTY_PRINT);
 }
+
