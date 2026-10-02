@@ -8,6 +8,7 @@ $repoRawBase = "https://raw.githubusercontent.com/Lazy-Debugging/Fintech_FHK/mai
 
 $filesToSync = [
     "respon.php",
+    "respon_mobile.php",
     "token.php",
     "cek.php",
     "callback.php",

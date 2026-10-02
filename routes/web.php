@@ -144,6 +144,25 @@ Route::match(['get', 'post'], '/app/fhk/index.php/respon.php', function () {
     require base_path('respon.php');
 });
 
+Route::match(['get', 'post'], '/respon_mobile.php', function () {
+    require base_path('respon_mobile.php');
+})->name('respon_mobile.php');
+Route::match(['get', 'post'], '/app/fhk/respon_mobile.php', function () {
+    require base_path('respon_mobile.php');
+});
+Route::match(['get', 'post'], '/fhk/respon_mobile.php', function () {
+    require base_path('respon_mobile.php');
+});
+Route::match(['get', 'post'], '/index.php/respon_mobile.php', function () {
+    require base_path('respon_mobile.php');
+});
+Route::match(['get', 'post'], '/fhk/index.php/respon_mobile.php', function () {
+    require base_path('respon_mobile.php');
+});
+Route::match(['get', 'post'], '/app/fhk/index.php/respon_mobile.php', function () {
+    require base_path('respon_mobile.php');
+});
+
 Route::match(['get', 'post'], '/token.php', function () {
     require base_path('token.php');
 });
