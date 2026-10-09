@@ -222,6 +222,7 @@ $adminRoutes = function () {
     Route::get('/vouchers', [VoucherController::class, 'index'])->name('vouchers.index');
     Route::post('/vouchers', [VoucherController::class, 'store'])->name('vouchers.store');
     Route::patch('/vouchers/{voucher}', [VoucherController::class, 'update'])->name('vouchers.update');
+    Route::delete('/vouchers/{voucher}', [VoucherController::class, 'destroy'])->name('vouchers.destroy');
     Route::get('/pricing', [PricingController::class, 'index'])->name('pricing.index');
     Route::post('/pricing', [PricingController::class, 'update'])->name('pricing.update');
     Route::post('/pricing/reset', [PricingController::class, 'resetToGlobal'])->name('pricing.reset');
