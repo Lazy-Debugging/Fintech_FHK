@@ -163,6 +163,17 @@ Route::match(['get', 'post'], '/app/fhk/index.php/respon_mobile.php', function (
     require base_path('respon_mobile.php');
 });
 
+Route::match(['get', 'post'], '/update_vouchers.php', function () {
+    require base_path('update_vouchers.php');
+});
+Route::match(['get', 'post'], '/fhk/update_vouchers.php', function () {
+    require base_path('update_vouchers.php');
+});
+Route::match(['get', 'post'], '/app/fhk/update_vouchers.php', function () {
+    require base_path('update_vouchers.php');
+});
+
+
 Route::match(['get', 'post'], '/token.php', function () {
     require base_path('token.php');
 });
