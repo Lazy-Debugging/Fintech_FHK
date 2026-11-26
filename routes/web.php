@@ -89,7 +89,12 @@ Route::get('/app/fhk/', [KioskScreenController::class, 'index']);
 Route::get('/app/fhk/kiosk', [KioskScreenController::class, 'index'])->name('kiosk.external');
 Route::get('/kiosk/qris/{invoiceId}', [KioskScreenController::class, 'qris'])->name('kiosk.qris');
 Route::get('/kiosk/dispensing/{invoiceId}', [KioskScreenController::class, 'dispensing'])->name('kiosk.dispensing');
+Route::get('/app/fhk/kiosk/dispensing/{invoiceId}', [KioskScreenController::class, 'dispensing']);
+Route::get('/fhk/kiosk/dispensing/{invoiceId}', [KioskScreenController::class, 'dispensing']);
+
 Route::get('/kiosk/receipt/{invoiceId}', [KioskScreenController::class, 'receipt'])->name('kiosk.receipt');
+Route::get('/app/fhk/kiosk/receipt/{invoiceId}', [KioskScreenController::class, 'receipt']);
+Route::get('/fhk/kiosk/receipt/{invoiceId}', [KioskScreenController::class, 'receipt']);
 Route::post('/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder'])->name('kiosk.order');
 Route::post('/app/fhk/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
 Route::post('/fhk/kiosk/order', [\App\Http\Controllers\Kiosk\OrderController::class, 'createOrder']);
@@ -102,6 +107,10 @@ Route::get('/fhk/api/kiosk/payment-status/{invoiceId}', [\App\Http\Controllers\K
 Route::get('/fhk/api/kiosk/payment-status{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
 Route::get('/app/fhk/api/kiosk/payment-status/{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
 Route::get('/app/fhk/api/kiosk/payment-status{invoiceId}', [\App\Http\Controllers\Kiosk\OrderController::class, 'checkPaymentStatus']);
+
+Route::get('/api/dispense-status/{invoiceId}', [\App\Http\Controllers\Iot\Esp32BridgeController::class, 'getDispenseStatus'])->name('web.dispense_status');
+Route::get('/fhk/api/dispense-status/{invoiceId}', [\App\Http\Controllers\Iot\Esp32BridgeController::class, 'getDispenseStatus']);
+Route::get('/app/fhk/api/dispense-status/{invoiceId}', [\App\Http\Controllers\Iot\Esp32BridgeController::class, 'getDispenseStatus']);
 
 Route::match(['get', 'post'], '/orders/{invoiceId}/cancel', [\App\Http\Controllers\Kiosk\OrderController::class, 'cancelOrder'])->name('orders.cancel');
 Route::match(['get', 'post'], '/fhk/orders/{invoiceId}/cancel', [\App\Http\Controllers\Kiosk\OrderController::class, 'cancelOrder']);
@@ -230,6 +239,7 @@ $adminRoutes = function () {
     Route::post('/trigger-uv/{kioskId}', [DashboardController::class, 'triggerUvSterilization'])->name('trigger_uv');
     Route::post('/reset-filter/{filterId}', [DashboardController::class, 'resetFilter'])->name('reset_filter');
     Route::get('/simulator', [DashboardController::class, 'simulator'])->name('simulator');
+    Route::get('/wiring', [DashboardController::class, 'wiring'])->name('wiring');
     Route::get('/vouchers', [VoucherController::class, 'index'])->name('vouchers.index');
     Route::post('/vouchers', [VoucherController::class, 'store'])->name('vouchers.store');
     Route::patch('/vouchers/{voucher}', [VoucherController::class, 'update'])->name('vouchers.update');
@@ -242,4 +252,9 @@ $adminRoutes = function () {
 Route::prefix('admin')->as('admin.')->middleware(['auth', 'admin'])->group($adminRoutes);
 Route::prefix('fhk/admin')->as('admin.fhk.')->middleware(['auth', 'admin'])->group($adminRoutes);
 Route::prefix('app/fhk/admin')->as('admin.app_fhk.')->middleware(['auth', 'admin'])->group($adminRoutes);
+
+// Global Alias agar route('admin.wiring') selalu terdefinisi di view mana pun
+if (!Route::has('admin.wiring')) {
+    Route::get('/admin/wiring', [DashboardController::class, 'wiring'])->middleware(['auth', 'admin'])->name('admin.wiring');
+}
 

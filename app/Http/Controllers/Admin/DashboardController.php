@@ -113,4 +113,14 @@ class DashboardController extends Controller
         $kiosk = Kiosk::findOrFail($kioskId);
         return view('admin.simulator', compact('kiosk'));
     }
+
+    /**
+     * Halaman Panduan & Skema Diagram Wiring Hardware IoT ESP32
+     */
+    public function wiring(Request $request)
+    {
+        $kioskId = $request->query('kiosk_id', config('aiyo.default_kiosk_id', 'FHK-JAKARTA-01'));
+        $kiosk = Kiosk::find($kioskId) ?? Kiosk::first();
+        return view('admin.wiring', compact('kiosk'));
+    }
 }

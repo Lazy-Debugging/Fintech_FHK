@@ -30,30 +30,38 @@ class Esp32BridgeController extends Controller
         // Update heartbeat kiosk
         $kiosk->update(['last_heartbeat' => now()]);
 
-        // Cari transaksi yang berstatus PAID dan menunggu pengeluaran air
-        $pendingOrder = Transaksi::where('kiosk_id', $kioskId)
-            ->where('status', 'QUEUED')
+        // Cari transaksi yang berstatus DISPENSING, QUEUED, atau PAID yang belum tuntas (dalam 2 jam terakhir)
+        $pendingOrder = Transaksi::where(function($q) use ($kioskId) {
+                $q->where('kiosk_id', $kioskId)->orWhereNull('kiosk_id')->orWhere('kiosk_id', '');
+            })
+            ->whereIn('status', ['DISPENSING', 'QUEUED', 'PAID'])
+            ->whereNull('dispense_completed_at')
+            ->where('created_at', '>=', now()->subHours(2))
             ->orderBy('created_at', 'asc')
             ->first();
 
         if ($pendingOrder) {
-            // Ubah status ke DISPENSING
-            $pendingOrder->update([
-                'status' => 'DISPENSING',
-                'dispense_started_at' => now(),
-            ]);
+            // Pastikan status adalah DISPENSING dan waktu mulai tercatat
+            if ($pendingOrder->status !== 'DISPENSING' || !$pendingOrder->dispense_started_at) {
+                $pendingOrder->update([
+                    'status' => 'DISPENSING',
+                    'dispense_started_at' => now(),
+                ]);
+            }
 
             $kiosk->update(['status' => 'DISPENSING']);
 
             return response()->json([
                 'status'                  => 'DISPENSE',
+                'command'                 => 'DISPENSE',
                 'job_id'                  => $pendingOrder->invoiceId,
                 'reference_id'            => $pendingOrder->referenceId,
-                'water_type'              => $pendingOrder->water_type, // NORMAL atau COLD
-                'volume_ml'               => $pendingOrder->volume_ml,
-                'uv_sterilize_pre_sec'    => 3, // UV aktif sebelum valve dibuka
-                'uv_sterilize_post_sec'   => 2, // UV tetap aktif untuk sterilisasi nozzle
-                'flow_pulse_calibration'  => 450 // estimasi pulsa sensor aliran YF-S201 per liter
+                'water_type'              => strtoupper($pendingOrder->water_type ?? 'NORMAL'),
+                'volume_ml'               => (int) ($pendingOrder->volume_ml ?? 250),
+                'max_cup_distance_cm'     => 22.0,
+                'min_cup_distance_cm'     => 12.0,
+                'timeout_sec'             => 60,
+                'flow_pulse_calibration'  => 5880
             ]);
         }
 
@@ -88,9 +96,7 @@ class Esp32BridgeController extends Controller
         $kiosk = Kiosk::findOrFail($kioskId);
 
         $jobId = $request->input('job_id');
-        $transaksi = Transaksi::where('kiosk_id', $kioskId)
-            ->where('invoiceId', $jobId)
-            ->first();
+        $transaksi = Transaksi::where('invoiceId', $jobId)->first();
 
         if (!$transaksi) {
             return response()->json(['status' => 'ERROR', 'message' => 'Job ID tidak ditemukan'], 404);
@@ -145,11 +151,14 @@ class Esp32BridgeController extends Controller
             return response()->json(['status' => 'NOT_FOUND'], 404);
         }
 
+        $progress = \Illuminate\Support\Facades\Cache::get("kiosk_dispense_progress:{$invoiceId}");
+
         return response()->json([
             'status'          => $transaksi->status, // DISPENSING, COMPLETED
             'isCompleted'     => ($transaksi->status === 'COMPLETED'),
             'dispenseStarted' => $transaksi->dispense_started_at?->toIso8601String(),
             'dispenseFinished'=> $transaksi->dispense_completed_at?->toIso8601String(),
+            'progress'        => $progress,
             'receiptUrl'      => route('kiosk.receipt', ['invoiceId' => $invoiceId])
         ]);
     }

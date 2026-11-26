@@ -28,6 +28,10 @@
                 <i class="fa-solid fa-microchip text-cyan-400"></i>
                 <span>Simulator ESP32</span>
             </a>
+            <a href="{{ route('admin.wiring') }}" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center justify-center gap-2 border border-slate-700">
+                <i class="fa-solid fa-network-wired text-emerald-400"></i>
+                <span>Skema Wiring</span>
+            </a>
         </div>
     </div>
 

@@ -79,6 +79,11 @@
                 <span>ESP32 Hardware Simulator</span>
             </a>
 
+            <a href="{{ route('admin.wiring') }}" class="px-3 py-2 rounded-xl {{ request()->routeIs('admin.wiring') ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-white' }} flex items-center gap-2">
+                <i class="fa-solid fa-network-wired"></i>
+                <span>Skema Wiring</span>
+            </a>
+
             <a href="{{ route('admin.vouchers.index') }}" class="px-3 py-2 rounded-xl {{ request()->routeIs('admin.vouchers.*') ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'text-slate-400 hover:text-white' }} flex items-center gap-2">
                 <i class="fa-solid fa-ticket"></i>
                 <span>Voucher</span>
@@ -102,6 +107,9 @@
             </a>
             <a href="{{ route('admin.simulator') }}" class="px-3 py-2.5 rounded-xl {{ request()->routeIs('admin.simulator') ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-slate-900 text-slate-300 border border-slate-800' }} flex items-center gap-2">
                 <i class="fa-solid fa-microchip"></i><span>ESP32 Hardware Simulator</span>
+            </a>
+            <a href="{{ route('admin.wiring') }}" class="px-3 py-2.5 rounded-xl {{ request()->routeIs('admin.wiring') ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'bg-slate-900 text-slate-300 border border-slate-800' }} flex items-center gap-2">
+                <i class="fa-solid fa-network-wired"></i><span>Skema Wiring</span>
             </a>
             <a href="{{ route('admin.vouchers.index') }}" class="px-3 py-2.5 rounded-xl {{ request()->routeIs('admin.vouchers.*') ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-slate-900 text-slate-300 border border-slate-800' }} flex items-center gap-2">
                 <i class="fa-solid fa-ticket"></i><span>Voucher</span>

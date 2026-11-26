@@ -88,43 +88,72 @@
     const stepIndEl = document.getElementById('step-indicator');
     const stepDescEl = document.getElementById('step-desc');
 
-    // Animasi Dispenser Bertahap
-    // 1. Pre-UV Sterilization (3 detik)
-    setTimeout(() => {
-        stepIndEl.textContent = `Langkah 2: Membuka Katup Solenoid Air ${waterType}...`;
-        stepDescEl.textContent = 'Aliran air sedang dituang secara presisi melalui sensor flow meter.';
+    // Deteksi base prefix secara dinamis (apakah berjalan di /fhk/ atau root)
+    const basePath = window.location.pathname.includes('/fhk') ? '/fhk' : '';
+    let isFinished = false;
 
-        // 2. Simulasi Aliran Air Mengisi Tumbler
-        const pourInterval = setInterval(() => {
-            currentVolume += Math.floor(targetVolume / 30);
-            if (currentVolume >= targetVolume) {
-                currentVolume = targetVolume;
-                clearInterval(pourInterval);
+    // Polling status riil dari ESP32 setiap 1.5 detik
+    const pollInterval = setInterval(checkDispenseStatus, 1500);
 
-                // 3. Post-UV Sterilization
-                stepIndEl.textContent = 'Langkah 3: Sterilisasi Akhir Nozzle UV...';
-                stepDescEl.textContent = 'Memastikan nozzle bebas droplet dan higienis untuk pengguna berikutnya.';
-                document.getElementById('water-stream').style.opacity = '0';
-
-                setTimeout(() => {
-                    completeDispense();
-                }, 1800);
-            }
-
-            volumeEl.textContent = currentVolume;
-            const pct = Math.min(100, Math.round((currentVolume / targetVolume) * 100));
-            fillEl.style.height = pct + '%';
-            progressEl.style.width = pct + '%';
-        }, 120);
-
-    }, 2500);
-
-    async function completeDispense() {
-        stepIndEl.textContent = 'Pengisian Selesai! Menyiapkan Struk Digital...';
-        stepIndEl.className = 'text-xs font-bold uppercase tracking-wider text-emerald-400';
+    async function checkDispenseStatus() {
+        if (isFinished) return;
 
         try {
-            const res = await fetch(`/api/simulate-dispense-complete/${invoiceId}`, {
+            const res = await fetch(basePath + "/api/dispense-status/" + invoiceId);
+            if (!res.ok) return;
+            const data = await res.json();
+
+            if (data.status === 'DISPENSING') {
+                stepIndEl.textContent = `Sedang Menuang Air ${waterType} (${targetVolume} mL)...`;
+                stepDescEl.textContent = 'Aliran air sedang dituang oleh IoT Dispenser. Harap letakkan gelas tepat di bawah nozzle.';
+                
+                // Animasi visual bertahap jika data progress belum ada
+                if (currentVolume < targetVolume * 0.85) {
+                    currentVolume += Math.floor(targetVolume / 20);
+                    updateVisuals(currentVolume);
+                }
+            } else if (data.status === 'COMPLETED' || data.isCompleted) {
+                isFinished = true;
+                clearInterval(pollInterval);
+                finishFlow(data.receiptUrl);
+            }
+        } catch (e) {
+            console.warn('[FHK] Gagal poll dispense status:', e);
+        }
+    }
+
+    function updateVisuals(vol) {
+        if (vol > targetVolume) vol = targetVolume;
+        volumeEl.textContent = vol;
+        const pct = Math.min(100, Math.round((vol / targetVolume) * 100));
+        fillEl.style.height = pct + '%';
+        progressEl.style.width = pct + '%';
+    }
+
+    function finishFlow(receiptUrl) {
+        updateVisuals(targetVolume);
+        stepIndEl.textContent = 'Pengisian Selesai! Menyiapkan Struk Digital...';
+        stepIndEl.className = 'text-xs font-bold uppercase tracking-wider text-emerald-400';
+        document.getElementById('water-stream').style.opacity = '0';
+
+        let targetUrl = receiptUrl || (basePath + "/kiosk/receipt/" + invoiceId);
+        if (basePath && !targetUrl.includes('/fhk/')) {
+            targetUrl = targetUrl.replace('mesinbayar.com/', 'mesinbayar.com/fhk/');
+        }
+
+        setTimeout(() => {
+            window.location.href = targetUrl;
+        }, 1500);
+    }
+
+    // Tombol darurat manual jika ingin bypass simulasi instan
+    async function instantComplete() {
+        if (isFinished) return;
+        isFinished = true;
+        clearInterval(pollInterval);
+
+        try {
+            const res = await fetch(basePath + "/api/simulate-dispense-complete/" + invoiceId, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -132,22 +161,10 @@
                 }
             });
             const data = await res.json();
-            if (data.receiptUrl) {
-                setTimeout(() => {
-                    window.location.href = data.receiptUrl;
-                }, 1000);
-            }
+            finishFlow(data.receiptUrl);
         } catch (e) {
-            window.location.href = `/kiosk/receipt/${invoiceId}`;
+            finishFlow(basePath + "/kiosk/receipt/" + invoiceId);
         }
-    }
-
-    function instantComplete() {
-        currentVolume = targetVolume;
-        volumeEl.textContent = currentVolume;
-        fillEl.style.height = '100%';
-        progressEl.style.width = '100%';
-        completeDispense();
     }
 </script>
 @endsection

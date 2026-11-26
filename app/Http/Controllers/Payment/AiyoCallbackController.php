@@ -144,9 +144,17 @@ class AiyoCallbackController extends Controller
         if ($isPaid) {
             // 7. Update Status Transaksi Menjadi PAID
             $transaksi->update([
-                'status' => 'PAID',
-                'remarks' => trim(($transaksi->remarks ?? '') . ' | Callback AiYO: ' . date('Y-m-d H:i:s'))
+                'status'              => 'DISPENSING',
+                'dispense_started_at' => now(),
+                'remarks'             => trim(($transaksi->remarks ?? '') . ' | Callback AiYO: ' . date('Y-m-d H:i:s'))
             ]);
+
+            // Dispatch instruksi penuangan air ke ESP32 melalui MQTT
+            try {
+                app(\App\Services\MqttKioskService::class)->dispatchDispenseJob($transaksi);
+            } catch (\Throwable $eMqtt) {
+                Log::warning('AiYO Callback MQTT dispatch error: ' . $eMqtt->getMessage());
+            }
 
             // Kirim notifikasi WhatsApp & Email secara eksplisit
             try {

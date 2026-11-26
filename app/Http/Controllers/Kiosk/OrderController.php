@@ -69,7 +69,7 @@ class OrderController extends Controller
             } else {
                 $priceMatrix = [
                     'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ],
-                    'NORMAL' => [ 250 => 1500, 500 => 2500, 1000 => 4500 ],
+                    'NORMAL' => [ 250 => 1, 500 => 2500, 1000 => 4500 ],
                 ];
                 $originalAmount = $priceMatrix[$waterTypeKey][$volumeMlVal] ?? 3500;
             }
@@ -77,7 +77,7 @@ class OrderController extends Controller
             Log::warning('OrderController: KioskPricing fallback', ['error' => $e->getMessage()]);
             $priceMatrix = [
                 'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ],
-                'NORMAL' => [ 250 => 1500, 500 => 2500, 1000 => 4500 ],
+                'NORMAL' => [ 250 => 1, 500 => 2500, 1000 => 4500 ],
             ];
             $originalAmount = $priceMatrix[$waterTypeKey][$volumeMlVal] ?? 3500;
         }
@@ -223,16 +223,28 @@ class OrderController extends Controller
             ], 404);
         }
 
-        // Jika di database sudah PAID, DISPENSING, atau COMPLETED
-        if ($transaksi->status === 'PAID') { $this->preparePickup($transaksi); }
-        if (in_array($transaksi->status, ['AWAITING_KIOSK_SCAN', 'QUEUED', 'DISPENSING', 'COMPLETED'])) {
+        // Jika pembayaran sudah selesai, langsung arahkan ke penuangan air (Skip QR Pickup)
+        if (in_array($transaksi->status, ['PAID', 'AWAITING_KIOSK_SCAN', 'QUEUED', 'DISPENSING'])) {
+            if ($transaksi->status !== 'DISPENSING') {
+                $transaksi->update(['status' => 'DISPENSING', 'dispense_started_at' => now()]);
+            }
+            try {
+                app(\App\Services\MqttKioskService::class)->dispatchDispenseJob($transaksi);
+            } catch (\Throwable $e) {}
+
             return response()->json([
                 'success'       => true,
-                'status'        => $transaksi->status,
+                'status'        => 'DISPENSING',
                 'isPaid'        => true,
-                'nextActionUrl' => ($transaksi->status === 'COMPLETED')
-                    ? route('kiosk.receipt', ['invoiceId' => $invoiceId])
-                    : route('orders.collect', ['invoiceId' => $invoiceId])
+                'nextActionUrl' => route('kiosk.dispensing', ['invoiceId' => $invoiceId])
+            ]);
+        }
+        if ($transaksi->status === 'COMPLETED') {
+            return response()->json([
+                'success'       => true,
+                'status'        => 'COMPLETED',
+                'isPaid'        => true,
+                'nextActionUrl' => route('kiosk.receipt', ['invoiceId' => $invoiceId])
             ]);
         }
 
@@ -247,17 +259,21 @@ class OrderController extends Controller
                 'result' => $statusRes
             ]);
             if ($statusRes['success'] && $statusRes['isPaid']) {
-                $transaksi->update(['status' => 'PAID']); 
-                $this->preparePickup($transaksi);
+                $transaksi->update([
+                    'status' => 'DISPENSING',
+                    'dispense_started_at' => now()
+                ]); 
                 try {
                     \App\Services\FonnteService::sendPaymentNotification($transaksi);
                     \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
+                    app(\App\Services\MqttKioskService::class)->dispatchDispenseJob($transaksi);
                 } catch (\Throwable $e) {}
+
                 return response()->json([
                     'success'       => true,
-                    'status'        => 'PAID',
+                    'status'        => 'DISPENSING',
                     'isPaid'        => true,
-                    'nextActionUrl' => route('orders.collect', ['invoiceId' => $invoiceId])
+                    'nextActionUrl' => route('kiosk.dispensing', ['invoiceId' => $invoiceId])
                 ]);
             }
             // Perbarui status jika AiYO mengembalikan EXPIRED / CANCELLED
@@ -303,6 +319,10 @@ class OrderController extends Controller
         $transaksi->update([
             'status' => 'PAID'
         ]);
+
+        try {
+            app(\App\Services\MqttKioskService::class)->dispatchDispenseJob($transaksi);
+        } catch (\Throwable $e) {}
 
         return response()->json([
             'success'       => true,
@@ -385,6 +405,12 @@ class OrderController extends Controller
             'kiosk_id' => $kiosk->id,
             'remarks'  => trim(($transaksi->remarks ?? '') . " | Redeemed via HP QR Scan pada Kios {$kiosk->id} " . date('H:i:s'))
         ]);
+
+        try {
+            app(\App\Services\MqttKioskService::class)->dispatchDispenseJob($transaksi);
+        } catch (\Throwable $e) {
+            Log::warning('OrderController redeemScan MQTT dispatch error: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success'       => true,

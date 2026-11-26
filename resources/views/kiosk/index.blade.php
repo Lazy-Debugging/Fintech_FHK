@@ -250,7 +250,7 @@
     // Matrix Harga Dynamic dari Database
     const priceMatrix = {!! json_encode($priceMatrix ?? [
         'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ],
-        'NORMAL' => [ 250 => 1500, 500 => 2500, 1000 => 4500 ]
+        'NORMAL' => [ 250 => 1, 500 => 2500, 1000 => 4500 ]
     ]) !!};
 
     function updatePriceUI() {
