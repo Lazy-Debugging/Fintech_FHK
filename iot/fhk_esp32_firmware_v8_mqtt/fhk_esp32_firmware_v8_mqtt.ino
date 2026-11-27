@@ -1321,7 +1321,7 @@ esp_err_t indexHandler(httpd_req_t *req) {
     return ESP_OK;
   }
 
-  const char *html = 
+  String html = 
     "<!DOCTYPE html><html><head><meta charset='utf-8'>"
     "<meta name='viewport' content='width=device-width, initial-scale=1'>"
     "<title>FHK ESP32-S3 Camera Stream</title>"
@@ -1349,7 +1349,7 @@ esp_err_t indexHandler(httpd_req_t *req) {
     "</script></body></html>";
 
   httpd_resp_set_type(req, "text/html");
-  return httpd_resp_send(req, html, HTTPD_RESP_USE_STRLEN);
+  return httpd_resp_send(req, html.c_str(), HTTPD_RESP_USE_STRLEN);
 }
 
 // Handler Halaman Form Setup Wi-Fi Dinamis

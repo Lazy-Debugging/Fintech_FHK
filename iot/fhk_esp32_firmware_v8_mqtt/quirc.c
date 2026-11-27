@@ -17,7 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "quirc_internal.h"
-#include <Arduino.h>
 
 const char *quirc_version(void)
 {
@@ -25,11 +24,7 @@ const char *quirc_version(void)
 }
 
 static inline void *safe_alloc(size_t size) {
-  if (psramFound()) {
-    void *p = ps_malloc(size);
-    if (p) return p;
-  }
-  return malloc(size);
+  return ps_malloc(size);
 }
 
 //static struct quirc _q;

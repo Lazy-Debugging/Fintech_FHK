@@ -7,6 +7,19 @@
 #define __COLLECTIONS_H__
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <esp_heap_caps.h>
+
+#ifndef ps_malloc
+static inline void *openmv_ps_malloc(size_t size) {
+  void *ptr = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!ptr) {
+    ptr = malloc(size);
+  }
+  return ptr;
+}
+#define ps_malloc(sz) openmv_ps_malloc(sz)
+#endif
 //////////
 // lifo //
 //////////

@@ -18,6 +18,19 @@
 #define QUIRC_INTERNAL_H_
 
 #include "quirc.h"
+#include <stdlib.h>
+#include <esp_heap_caps.h>
+
+#ifndef ps_malloc
+static inline void *safe_ps_malloc(size_t size) {
+  void *ptr = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!ptr) {
+    ptr = malloc(size);
+  }
+  return ptr;
+}
+#define ps_malloc(sz) safe_ps_malloc(sz)
+#endif
 
 #define QUIRC_PIXEL_WHITE 0
 #define QUIRC_PIXEL_BLACK 1
