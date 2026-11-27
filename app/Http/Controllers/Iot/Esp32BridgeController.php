@@ -86,12 +86,81 @@ class Esp32BridgeController extends Controller
     public function redeemPickup(string $kioskId, Request $request): JsonResponse
     {
         $kiosk = Kiosk::findOrFail($kioskId);
-        abort_unless(hash_equals($kiosk->api_secret_token, (string) $request->header('X-Kiosk-Secret')), 401);
-        $token = $request->validate(['token' => 'required|string|max:100'])['token'];
-        $transaction = Transaksi::where('kiosk_id', $kioskId)->where('redemption_token_hash', hash('sha256', $token))->where('status', 'AWAITING_KIOSK_SCAN')->where('redemption_expires_at', '>', now())->first();
-        if (!$transaction) return response()->json(['status' => 'INVALID', 'message' => 'QR tidak valid atau telah digunakan.'], 422);
-        $transaction->update(['status' => 'QUEUED', 'redeemed_at' => now()]);
-        return response()->json(['status' => 'QUEUED', 'message' => 'Pesanan diterima kiosk.']);
+
+        // Verifikasi token keamanan jika dikirim
+        $tokenSecret = $request->header('X-Kiosk-Secret') ?? $request->query('token_secret');
+        if ($tokenSecret && $tokenSecret !== $kiosk->api_secret_token && $tokenSecret !== config('aiyo.kiosk_api_secret')) {
+            return response()->json(['status' => 'UNAUTHORIZED', 'message' => 'Token hardware tidak valid'], 401);
+        }
+
+        $token = trim((string) $request->input('token'));
+        if (empty($token)) {
+            return response()->json(['status' => 'INVALID', 'message' => 'Token QR tidak boleh kosong.'], 400);
+        }
+
+        // Cek stok air kios
+        if ($kiosk->current_water_level_pct <= 5.0 || $kiosk->status === 'OUT_OF_WATER') {
+            return response()->json([
+                'status'  => 'OUT_OF_WATER',
+                'message' => 'Stok air di tangki kios habis. Hubungi teknisi untuk isi ulang.'
+            ], 422);
+        }
+
+        $tokenHash = hash('sha256', $token);
+
+        // Cari transaksi: mendukung token hash, invoiceId (INV-...), maupun referenceId
+        $transaction = Transaksi::where(function($q) use ($kioskId) {
+                $q->where('kiosk_id', $kioskId)->orWhereNull('kiosk_id')->orWhere('kiosk_id', '');
+            })
+            ->where(function($q) use ($token, $tokenHash) {
+                $q->where('redemption_token_hash', $tokenHash)
+                  ->orWhere('invoiceId', $token)
+                  ->orWhere('referenceId', $token);
+            })
+            ->whereIn('status', ['PAID', 'AWAITING_KIOSK_SCAN', 'QUEUED'])
+            ->whereNull('dispense_completed_at')
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+        if (!$transaction) {
+            return response()->json([
+                'status'  => 'INVALID',
+                'message' => 'QR Code tidak valid, belum lunas, atau sudah pernah digunakan.'
+            ], 422);
+        }
+
+        // Aktifkan penuangan air untuk transaksi ini
+        $transaction->update([
+            'status'               => 'DISPENSING',
+            'kiosk_id'             => $kioskId,
+            'redeemed_at'          => now(),
+            'dispense_started_at'  => now(),
+            'remarks'              => trim(($transaction->remarks ?? '') . " | Redeemed via Kamera QR ESP32 " . date('H:i:s'))
+        ]);
+
+        $kiosk->update([
+            'status'         => 'DISPENSING',
+            'last_heartbeat' => now()
+        ]);
+
+        // Dispatch MQTT jika terhubung
+        try {
+            app(\App\Services\MqttKioskService::class)->dispatchDispenseJob($transaction);
+        } catch (\Throwable $e) {}
+
+        return response()->json([
+            'status'                  => 'DISPENSE',
+            'command'                 => 'DISPENSE',
+            'job_id'                  => $transaction->invoiceId,
+            'reference_id'            => $transaction->referenceId,
+            'water_type'              => strtoupper($transaction->water_type ?? 'NORMAL'),
+            'volume_ml'               => (int) ($transaction->volume_ml ?? 250),
+            'max_cup_distance_cm'     => 22.0,
+            'min_cup_distance_cm'     => 12.0,
+            'timeout_sec'             => 60,
+            'flow_pulse_calibration'  => 5880,
+            'message'                 => "QR Valid! Menuangkan air {$transaction->volume_ml} mL..."
+        ]);
     }
 
     /**

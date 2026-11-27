@@ -26,6 +26,7 @@
 #include "driver/gpio.h"
 #include "esp_timer.h"
 #include "esp_log.h"
+#include "quirc.h"
 
 // Cetak debug TANPA memblokir: dilewati jika buffer Serial penuh.
 #define DBG(...) do { if (Serial.availableForWrite() >= 200) Serial.printf(__VA_ARGS__); } while (0)
@@ -1103,7 +1104,7 @@ void initializeCamera() {
   config.pin_reset = CAM_PIN_RESET;
 
   config.xclk_freq_hz = 20000000;
-  config.pixel_format = PIXFORMAT_RGB565;
+  config.pixel_format = PIXFORMAT_GRAYSCALE;
   config.frame_size = FRAMESIZE_QVGA;
   config.jpeg_quality = 12;
 
@@ -1119,9 +1120,134 @@ void initializeCamera() {
   esp_err_t err = esp_camera_init(&config);
   cameraReady = (err == ESP_OK);
   if (cameraReady) {
-    Serial.println("Camera GC2145 initialized successfully.");
+    Serial.println("Camera GC2145 initialized successfully (Grayscale QVGA).");
   } else {
     Serial.printf("Camera GC2145 init FAILED: 0x%x\n", err);
+  }
+}
+
+// ============================================================
+// 12B. EMBEDDED QR CODE DECODER (QUIRC ENGINE)
+// ============================================================
+
+struct quirc *qrEngine = nullptr;
+char lastScannedQr[96] = "";
+uint32_t lastScannedQrAt = 0;
+
+void setupQrEngine() {
+  qrEngine = quirc_new();
+  if (qrEngine) {
+    if (quirc_resize(qrEngine, 320, 240) >= 0) {
+      Serial.println("[QR ENGINE] Quirc QR Decoder aktif (QVGA 320x240).");
+    } else {
+      Serial.println("[QR ENGINE] Gagal resize buffer quirc.");
+    }
+  } else {
+    Serial.println("[QR ENGINE] Gagal alokasi quirc object.");
+  }
+}
+
+void handleDetectedQrToken(const char *token) {
+  if (strlen(token) == 0) return;
+  uint32_t now = millis();
+  if (strcmp(token, lastScannedQr) == 0 && now - lastScannedQrAt < 6000) return;
+  strncpy(lastScannedQr, token, sizeof(lastScannedQr) - 1);
+  lastScannedQrAt = now;
+
+  Serial.printf("\n[QR SCANNER] >>> QR CODE TERDETEKSI: %s <<<\n", token);
+  buzzerBeep(80);
+  delay(40);
+  buzzerBeep(80);
+
+  lcdPrintLine(0, "QR Terdeteksi!");
+  char l2[17];
+  snprintf(l2, sizeof(l2), "%.16s", token);
+  lcdPrintLine(1, l2);
+
+  // Verifikasi token ke Server Live Laravel via HTTP POST
+  if (WiFi.status() != WL_CONNECTED) {
+    lcdPrintLine(0, "WiFi Terputus!");
+    lcdPrintLine(1, "Gagal Verifikasi");
+    return;
+  }
+
+  WiFiClient client;
+  HTTPClient http;
+  char url[160];
+  snprintf(url, sizeof(url), "%s/pickup/redeem", SERVER_BASE_URL);
+
+  if (http.begin(client, url)) {
+    http.setTimeout(3500);
+    http.addHeader("Content-Type", "application/json");
+    char body[160];
+    snprintf(body, sizeof(body), "{\"token\":\"%s\"}", token);
+
+    int httpCode = http.POST(body);
+    if (httpCode == HTTP_CODE_OK) {
+      String resp = http.getString();
+      Serial.printf("[QR REDEEM] Respons Server: %s\n", resp.c_str());
+      if (resp.indexOf("\"DISPENSE\"") >= 0) {
+        parseJsonCommand(resp.c_str());
+      }
+    } else {
+      Serial.printf("[QR REDEEM] Token tidak valid, HTTP %d: %s\n", httpCode, http.getString().c_str());
+      lcdPrintLine(0, "QR Tidak Valid!");
+      lcdPrintLine(1, "Cek Transaksi HP");
+      buzzerBeep(300);
+      delay(1500);
+    }
+    http.end();
+  }
+}
+
+void qrScanTask(void *pvParameters) {
+  vTaskDelay(pdMS_TO_TICKS(2500)); // Tunggu sistem boot stabil
+  Serial.println("[QR TASK] Task pemindai QR aktif di Core 0.");
+
+  while (true) {
+    if (cameraReady && qrEngine && fillState == ST_IDLE) {
+      camera_fb_t *fb = esp_camera_fb_get();
+      if (fb) {
+        if (fb->width == 320 && fb->height == 240) {
+          uint8_t *image = quirc_begin(qrEngine, NULL, NULL);
+          if (image) {
+            if (fb->format == PIXFORMAT_GRAYSCALE) {
+              memcpy(image, fb->buf, fb->len);
+            } else if (fb->format == PIXFORMAT_RGB565) {
+              const uint16_t *rgb = (const uint16_t *)fb->buf;
+              int total = fb->width * fb->height;
+              for (int i = 0; i < total; i++) {
+                uint16_t p = rgb[i];
+                uint8_t r = (p >> 11) & 0x1F;
+                uint8_t g = (p >> 5) & 0x3F;
+                uint8_t b = p & 0x1F;
+                image[i] = (uint8_t)((r * 2 + g * 3 + b) >> 2);
+              }
+            }
+            quirc_end(qrEngine);
+
+            int count = quirc_count(qrEngine);
+            for (int i = 0; i < count; i++) {
+              struct quirc_code code;
+              struct quirc_data data;
+              quirc_extract(qrEngine, i, &code);
+              if (quirc_decode(&code, &data) == QUIRC_SUCCESS) {
+                char tokenStr[96] = "";
+                int len = data.payload_len;
+                if (len >= sizeof(tokenStr)) len = sizeof(tokenStr) - 1;
+                memcpy(tokenStr, data.payload, len);
+                tokenStr[len] = '\0';
+
+                handleDetectedQrToken(tokenStr);
+                break;
+              }
+            }
+          }
+        }
+        esp_camera_fb_return(fb);
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(200)); // Scan interval 200 ms
   }
 }
 
@@ -1553,6 +1679,10 @@ void setup() {
 
   // LCD Task di Core 1
   xTaskCreatePinnedToCore(lcdTask, "lcd", 4096, nullptr, 1, nullptr, 1);
+
+  // Inisialisasi QR Code Scanner (Quirc Engine) di Core 0
+  setupQrEngine();
+  xTaskCreatePinnedToCore(qrScanTask, "qr_scan", 10240, nullptr, 2, nullptr, 0);
 
   lastFlowLcdAt = millis();
   lastFlowCalcAt = millis();
