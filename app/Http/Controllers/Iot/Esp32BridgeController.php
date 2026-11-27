@@ -36,14 +36,15 @@ class Esp32BridgeController extends Controller
             return response()->json($pendingCmd);
         }
 
-        // Cari transaksi yang berstatus DISPENSING, QUEUED, atau PAID yang belum tuntas (dalam 2 jam terakhir)
+        // Cari transaksi yang berstatus DISPENSING yang sudah di-redeem (Scan QR Kamera / Tuang Manual)
+        // PENTING: Transaksi PAID / AWAITING_KIOSK_SCAN TIDAK boleh otomatis dipompa sebelum di-scan di kamera kios!
         $pendingOrder = Transaksi::where(function($q) use ($kioskId) {
                 $q->where('kiosk_id', $kioskId)->orWhereNull('kiosk_id')->orWhere('kiosk_id', '');
             })
-            ->whereIn('status', ['DISPENSING', 'QUEUED', 'PAID'])
+            ->where('status', 'DISPENSING')
             ->whereNull('dispense_completed_at')
-            ->where('created_at', '>=', now()->subHours(2))
-            ->orderBy('created_at', 'asc')
+            ->where('created_at', '>=', now()->subHours(1))
+            ->orderBy('created_at', 'desc')
             ->first();
 
         if ($pendingOrder) {
