@@ -111,13 +111,13 @@ static const bool BUZZER_ACTIVE_HIGH = true;
 // 4. WIFI ROUTER + FALLBACK ACCESS POINT
 // ============================================================
 
-// Wi-Fi 1 (Utama)
-const char *WIFI_SSID_1 = "SIEGA";
-const char *WIFI_PASSWORD_1 = "Siega@2025";
+// Wi-Fi 1 (Utama - OMBRA)
+const char *WIFI_SSID_1 = "OMBRA";
+const char *WIFI_PASSWORD_1 = "janganlupadikocok";
 
-// Wi-Fi 2 (Cadangan / Baru - OMBRA COFFEE)
-const char *WIFI_SSID_2 = "OMBRA COFFEE_4G";
-const char *WIFI_PASSWORD_2 = "janganlupadikocok";
+// Wi-Fi 2 (Cadangan - SIEGA)
+const char *WIFI_SSID_2 = "SIEGA";
+const char *WIFI_PASSWORD_2 = "Siega@2025";
 
 // Alias default untuk kompatibilitas
 const char *WIFI_SSID = WIFI_SSID_1;
@@ -776,9 +776,14 @@ void ensureMqttConnected() {
       Serial.printf("[WIFI] Sedang menyambung ke Wi-Fi... (Status: %d)\n", WiFi.status());
     }
 
-    if (!usingFallbackAP && millis() - lastReconnectTry > 12000) {
+    if (!usingFallbackAP && millis() - lastReconnectTry > 10000) {
       lastReconnectTry = millis();
-      if (reconnectTarget == 1) {
+      if (strlen(dynamicSsid) > 0 && reconnectTarget == 0) {
+        Serial.printf("[WIFI] Reconnecting to Dynamic Wi-Fi (%s)...\n", dynamicSsid);
+        WiFi.disconnect();
+        WiFi.begin(dynamicSsid, dynamicPass);
+        reconnectTarget = 1;
+      } else if (reconnectTarget == 1) {
         Serial.printf("[WIFI] Reconnecting to Wi-Fi 1 (%s)...\n", WIFI_SSID_1);
         WiFi.disconnect();
         WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
@@ -787,7 +792,7 @@ void ensureMqttConnected() {
         Serial.printf("[WIFI] Reconnecting to Wi-Fi 2 (%s)...\n", WIFI_SSID_2);
         WiFi.disconnect();
         WiFi.begin(WIFI_SSID_2, WIFI_PASSWORD_2);
-        reconnectTarget = 1;
+        reconnectTarget = (strlen(dynamicSsid) > 0) ? 0 : 1;
       }
     }
     return;
@@ -1581,11 +1586,11 @@ void startNetwork() {
     Serial.println();
   }
 
-  // 3. Jika belum tersambung, coba Wi-Fi 2 (OMBRA COFFEE_4G)
+  // 3. Jika belum tersambung, coba Wi-Fi 2
   if (WiFi.status() != WL_CONNECTED) {
     Serial.printf("Wi-Fi 1 gagal. Connecting to Wi-Fi 2 (Fallback): %s...\n", WIFI_SSID_2);
     lcdPrintLine(0, "WiFi Fallback...");
-    lcdPrintLine(1, "OMBRA COFFEE_4G");
+    lcdPrintLine(1, WIFI_SSID_2);
     WiFi.disconnect();
     delay(500);
     WiFi.begin(WIFI_SSID_2, WIFI_PASSWORD_2);
@@ -1629,8 +1634,8 @@ void startNetwork() {
 
 void setup() {
   Serial.begin(115200);
+  delay(1000);
   esp_log_level_set("*", ESP_LOG_ERROR);
-  delay(500);
 
   Serial.println("\n========================================");
   Serial.println(" FRESH HYDRATION KIOSK - ESP32-S3 (v8 MQTT)");
