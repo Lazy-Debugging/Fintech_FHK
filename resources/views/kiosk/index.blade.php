@@ -75,21 +75,21 @@
                 <span class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs">2</span>
                 Pilih Ukuran Volume
             </label>
-            <div class="grid grid-cols-1 min-[420px]:grid-cols-3 gap-3 sm:gap-4">
+            <div class="grid grid-cols-1 min-[420px]:grid-cols-3 gap-3 sm:gap-4 pt-2">
                 
                 <!-- 250 ml -->
                 <div onclick="selectVolume(250)" id="vol-250"
-                     class="vol-card cursor-pointer p-4 rounded-2xl border-2 border-slate-800 bg-slate-900/40 text-center hover:border-slate-700 transition duration-200">
+                     class="vol-card cursor-pointer p-4 rounded-2xl border-2 border-slate-800 bg-slate-900/40 text-center hover:border-slate-700 transition duration-200 relative">
                     <div class="text-slate-400 text-lg mb-1"><i class="fa-solid fa-mug-saucer"></i></div>
                     <div class="text-lg sm:text-xl font-extrabold text-white">250 ml</div>
                     <div class="text-[11px] text-slate-400">Gelas / Cup</div>
                     <div id="price-250" class="mt-2 text-xs font-bold text-cyan-400">Rp 2.000</div>
                 </div>
 
-                <!-- 500 ml (Default Active) -->
+                <!-- 500 ml (Default Active & Populer) -->
                 <div onclick="selectVolume(500)" id="vol-500"
                      class="vol-card active cursor-pointer p-4 rounded-2xl border-2 border-cyan-500 bg-cyan-950/30 text-center hover:border-cyan-400 transition duration-200 relative">
-                    <span class="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-cyan-500 text-[10px] font-black uppercase text-slate-950 tracking-wider">
+                    <span class="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-cyan-500 text-[10px] font-black uppercase text-slate-950 tracking-wider shadow-md pointer-events-none whitespace-nowrap z-10">
                         Populer
                     </span>
                     <div class="text-cyan-400 text-lg mb-1"><i class="fa-solid fa-bottle-water"></i></div>
@@ -100,7 +100,7 @@
 
                 <!-- 1000 ml -->
                 <div onclick="selectVolume(1000)" id="vol-1000"
-                     class="vol-card cursor-pointer p-4 rounded-2xl border-2 border-slate-800 bg-slate-900/40 text-center hover:border-slate-700 transition duration-200">
+                     class="vol-card cursor-pointer p-4 rounded-2xl border-2 border-slate-800 bg-slate-900/40 text-center hover:border-slate-700 transition duration-200 relative">
                     <div class="text-slate-400 text-lg mb-1"><i class="fa-solid fa-jar"></i></div>
                     <div class="text-lg sm:text-xl font-extrabold text-white">1000 ml</div>
                     <div class="text-[11px] text-slate-400">Botol 1 Liter</div>
@@ -201,7 +201,7 @@
 @section('scripts')
 <script>
     let selectedTemp = 'NORMAL';
-    let selectedVol = 250;
+    let selectedVol = 500;
     const kioskId = "{{ $kiosk->id }}";
     const isWaterEmpty = {{ ($kiosk->current_water_level_pct <= 5.0 || $kiosk->status === 'OUT_OF_WATER') ? 'true' : 'false' }};
 
@@ -252,10 +252,15 @@
         selectedVol = vol;
         [250, 500, 1000].forEach(v => {
             const card = document.getElementById('vol-' + v);
+            if (!card) return;
             if (v === vol) {
                 card.className = 'vol-card active cursor-pointer p-4 rounded-2xl border-2 border-cyan-500 bg-cyan-950/30 text-center transition duration-200 relative';
+                const icon = card.querySelector('.fa-solid');
+                if (icon && icon.parentElement) icon.parentElement.className = 'text-cyan-400 text-lg mb-1';
             } else {
-                card.className = 'vol-card cursor-pointer p-4 rounded-2xl border-2 border-slate-800 bg-slate-900/40 text-center hover:border-slate-700 transition duration-200';
+                card.className = 'vol-card cursor-pointer p-4 rounded-2xl border-2 border-slate-800 bg-slate-900/40 text-center hover:border-slate-700 transition duration-200 relative';
+                const icon = card.querySelector('.fa-solid');
+                if (icon && icon.parentElement) icon.parentElement.className = 'text-slate-400 text-lg mb-1';
             }
         });
 
