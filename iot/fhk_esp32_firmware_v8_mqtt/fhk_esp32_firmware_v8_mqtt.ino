@@ -638,6 +638,61 @@ void parseJsonCommand(const char *jsonStr) {
     setLcdText(l1, l2);
 
     publishMqttStatus(false);
+  } else if (strstr(jsonStr, "SET_WIFI")) {
+    Serial.println("\n[COMMAND] >>> PERINTAH GANTI WI-FI DARI DASHBOARD DITERIMA! <<<");
+    char newSsid[64] = "";
+    char newPass[64] = "";
+
+    // Ambil ssid
+    const char *pSsid = strstr(jsonStr, "ssid");
+    if (pSsid) {
+      const char *colon = strchr(pSsid, ':');
+      if (colon) {
+        const char *quote1 = strchr(colon, '\"');
+        if (quote1) {
+          quote1++;
+          int i = 0;
+          while (*quote1 && *quote1 != '\"' && i < sizeof(newSsid) - 1) {
+            newSsid[i++] = *quote1++;
+          }
+          newSsid[i] = '\0';
+        }
+      }
+    }
+
+    // Ambil password
+    const char *pPass = strstr(jsonStr, "password");
+    if (pPass) {
+      const char *colon = strchr(pPass, ':');
+      if (colon) {
+        const char *quote1 = strchr(colon, '\"');
+        if (quote1) {
+          quote1++;
+          int i = 0;
+          while (*quote1 && *quote1 != '\"' && i < sizeof(newPass) - 1) {
+            newPass[i++] = *quote1++;
+          }
+          newPass[i] = '\0';
+        }
+      }
+    }
+
+    if (strlen(newSsid) > 0) {
+      Preferences p;
+      p.begin("fhk_cfg", false);
+      p.putString("ssid", newSsid);
+      p.putString("pass", newPass);
+      p.end();
+
+      Serial.printf("[COMMAND] Wi-Fi berhasil disimpan ke NVS: %s. Me-reboot ESP32...\n", newSsid);
+      lcdPrintLine(0, "WiFi Updating...");
+      lcdPrintLine(1, newSsid);
+      buzzerBeep(120);
+      delay(100);
+      buzzerBeep(120);
+      delay(1500);
+      ESP.restart();
+    }
   } else if (strstr(jsonStr, "ABORT")) {
     Serial.println("[FSM] >>> PERINTAH ABORT DITERIMA DARI SERVER! <<<");
     stopFilling(ST_FAULT, "Dihentikan oleh Server!", "SERVER_ABORT");
@@ -674,8 +729,8 @@ void pollServerHttpCommand() {
     int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK) {
       String payload = http.getString();
-      if (payload.indexOf("\"DISPENSE\"") >= 0) {
-        Serial.printf("[HTTP POLL] >>> TRANSAKSI WEB DITERIMA! <<<\n%s\n", payload.c_str());
+      if (payload.indexOf("\"DISPENSE\"") >= 0 || payload.indexOf("\"SET_WIFI\"") >= 0 || payload.indexOf("\"ABORT\"") >= 0) {
+        Serial.printf("[HTTP POLL] >>> PERINTAH SERVER DITERIMA! <<<\n%s\n", payload.c_str());
         parseJsonCommand(payload.c_str());
       }
     }

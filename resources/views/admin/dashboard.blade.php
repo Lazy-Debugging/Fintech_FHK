@@ -24,6 +24,10 @@
                 <i class="fa-solid fa-faucet-drip"></i>
                 <span>Isi Ulang Air (Refill)</span>
             </button>
+            <button onclick="openWifiModal()" class="px-4 py-2.5 rounded-xl bg-sky-900/50 hover:bg-sky-800/60 text-sky-200 border border-sky-700/60 text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-sky-950/40">
+                <i class="fa-solid fa-wifi text-sky-400"></i>
+                <span>Ganti Wi-Fi Kios</span>
+            </button>
             <button onclick="triggerEmergencyUv()" class="px-4 py-2.5 rounded-xl bg-purple-900/50 hover:bg-purple-800/60 text-purple-200 border border-purple-700/60 text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-purple-950/40">
                 <i class="fa-solid fa-shield-virus text-purple-400"></i>
                 <span>Jalankan Sterilisasi UV Sekarang</span>
@@ -375,11 +379,110 @@
         </div>
     </div>
 
+    <!-- Modal Ganti Wi-Fi Kios dari Jarak Jauh (Cloud) -->
+    <div id="wifi-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="admin-card rounded-2xl max-w-md w-full p-6 space-y-5 border border-slate-700 shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-wifi text-sky-400"></i>
+                    <span>Ganti Wi-Fi Kios dari Cloud</span>
+                </h3>
+                <button type="button" onclick="closeWifiModal()" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-300">
+                Kirim konfigurasi SSID & Password baru langsung ke mesin kios <strong>{{ $selectedKiosk->name ?? $selectedKiosk->id }}</strong>. ESP32 yang sedang online akan otomatis mengunduh konfigurasi ini dalam 2 detik, menyimpan ke memori Flash NVS, dan reboot ke Wi-Fi baru.
+            </p>
+
+            <div class="space-y-4">
+                <div class="space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-network-wired text-sky-400"></i> Nama Wi-Fi (SSID Baru)
+                    </label>
+                    <input type="text" id="wifi-ssid-input" placeholder="Contoh: WiFi-Kantor / Hotspot-HP" class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs text-white outline-none focus:border-sky-400">
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-key text-amber-400"></i> Password Wi-Fi
+                    </label>
+                    <input type="text" id="wifi-pass-input" placeholder="Kosongkan jika Wi-Fi tanpa sandi" class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs text-white outline-none focus:border-sky-400">
+                </div>
+
+                <div class="p-3 rounded-xl bg-sky-950/40 border border-sky-800/50 text-[11px] text-sky-300 space-y-1">
+                    <div class="font-bold flex items-center gap-1">
+                        <i class="fa-solid fa-circle-info"></i> Catatan Penting:
+                    </div>
+                    <div>Pastikan nama Wi-Fi dan sandi sudah benar. Jika ESP32 gagal tersambung ke Wi-Fi baru, ESP32 otomatis menyalakan Hotspot darurat <strong>FHK-Kiosk-Setup (192.168.4.1)</strong>.</div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button type="button" onclick="closeWifiModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+                    Batal
+                </button>
+                <button type="button" id="btn-submit-wifi" onclick="submitSetWifi()" class="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-sky-950/50">
+                    <i class="fa-solid fa-paper-plane"></i>
+                    <span>Kirim Perintah ke ESP32</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
 </div>
 @endsection
 
 @section('scripts')
 <script>
+    function openWifiModal() {
+        document.getElementById('wifi-modal').classList.remove('hidden');
+    }
+
+    function closeWifiModal() {
+        document.getElementById('wifi-modal').classList.add('hidden');
+    }
+
+    async function submitSetWifi() {
+        const ssidInput = document.getElementById('wifi-ssid-input');
+        const passInput = document.getElementById('wifi-pass-input');
+        const ssid = ssidInput ? ssidInput.value.trim() : '';
+        const pass = passInput ? passInput.value.trim() : '';
+        const btn = document.getElementById('btn-submit-wifi');
+
+        if (!ssid) {
+            alert('Mohon masukkan Nama Wi-Fi (SSID).');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengirim ke Kios...';
+
+        try {
+            const res = await fetch("{{ route('admin.set_wifi', ['kioskId' => $selectedKiosk->id]) }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    ssid: ssid,
+                    password: pass
+                })
+            });
+            const data = await res.json();
+            alert(data.message || 'Perintah ganti Wi-Fi berhasil dikirim ke kios!');
+            closeWifiModal();
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Kirim Perintah ke ESP32';
+        } catch (e) {
+            alert('Gagal mengirim perintah ganti Wi-Fi.');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Kirim Perintah ke ESP32';
+        }
+    }
     function openRefillModal() {
         document.getElementById('refill-modal').classList.remove('hidden');
     }

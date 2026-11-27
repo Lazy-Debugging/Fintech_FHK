@@ -30,6 +30,12 @@ class Esp32BridgeController extends Controller
         // Update heartbeat kiosk
         $kiosk->update(['last_heartbeat' => now()]);
 
+        // 0. Cek jika ada perintah cloud jarak jauh dari Dashboard Admin (misal: SET_WIFI)
+        $pendingCmd = \Illuminate\Support\Facades\Cache::pull("kiosk_pending_cmd_{$kioskId}");
+        if ($pendingCmd) {
+            return response()->json($pendingCmd);
+        }
+
         // Cari transaksi yang berstatus DISPENSING, QUEUED, atau PAID yang belum tuntas (dalam 2 jam terakhir)
         $pendingOrder = Transaksi::where(function($q) use ($kioskId) {
                 $q->where('kiosk_id', $kioskId)->orWhereNull('kiosk_id')->orWhere('kiosk_id', '');

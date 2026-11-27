@@ -174,4 +174,47 @@ class DashboardController extends Controller
         $kiosk = Kiosk::find($kioskId) ?? Kiosk::first();
         return view('admin.wiring', compact('kiosk'));
     }
+
+    /**
+     * Kirim Perintah Ganti Wi-Fi ke ESP32 Kios dari Cloud Dashboard
+     */
+    public function setKioskWifi(Request $request, string $kioskId): JsonResponse
+    {
+        $request->validate([
+            'ssid'     => 'required|string|max:64',
+            'password' => 'nullable|string|max:64',
+        ]);
+
+        $ssid = trim($request->input('ssid'));
+        $pass = (string) $request->input('password', '');
+
+        $kiosk = Kiosk::findOrFail($kioskId);
+
+        $commandPayload = [
+            'status'   => 'COMMAND',
+            'command'  => 'SET_WIFI',
+            'ssid'     => $ssid,
+            'password' => $pass,
+            'kiosk_id' => $kioskId,
+            'time'     => now()->toIso8601String(),
+        ];
+
+        // 1. Simpan di cache pending command agar langsung diambil saat HTTP polling (interval 2 detik)
+        \Illuminate\Support\Facades\Cache::put("kiosk_pending_cmd_{$kioskId}", $commandPayload, now()->addMinutes(10));
+
+        // 2. Publish juga via MQTT agar instan jika broker aktif
+        try {
+            $mqtt = app(\App\Services\MqttKioskService::class);
+            if ($mqtt) {
+                $mqtt->publish("fhk/kiosk/{$kioskId}/command", $commandPayload);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Gagal kirim MQTT SET_WIFI: " . $e->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Perintah ganti Wi-Fi ke '{$ssid}' berhasil dikirim ke kios {$kioskId}! ESP32 akan menyambung dan reboot dalam beberapa detik."
+        ]);
+    }
 }
