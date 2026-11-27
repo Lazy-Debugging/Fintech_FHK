@@ -34,9 +34,15 @@ void lifo_alloc(lifo_t *ptr, size_t size, size_t data_len)
 
 void lifo_alloc_all(lifo_t *ptr, size_t *size, size_t data_len)
 {
-  ptr->data = (char *)ps_malloc(255);
+  // Alokasi memori stack LIFO yang cukup besar (32 KB = ~4096 elemen) untuk flood-fill QVGA
+  size_t total_bytes = 32768;
+  ptr->data = (char *)ps_malloc(total_bytes);
+  if (!ptr->data) {
+    total_bytes = 8192;
+    ptr->data = (char *)malloc(total_bytes);
+  }
   ptr->data_len = data_len;
-  ptr->size = 255 / data_len;
+  ptr->size = total_bytes / data_len;
   ptr->len = 0;
   *size = ptr->size;
 }
@@ -71,8 +77,11 @@ bool lifo_is_not_full(lifo_t *ptr)
 
 void lifo_enqueue(lifo_t *ptr, void *data)
 {
-  memcpy(ptr->data + (ptr->len * ptr->data_len), data, ptr->data_len);
-  ptr->len += 1;
+  if (ptr && ptr->data && ptr->len < ptr->size)
+  {
+    memcpy(ptr->data + (ptr->len * ptr->data_len), data, ptr->data_len);
+    ptr->len += 1;
+  }
 }
 
 void lifo_dequeue(lifo_t *ptr, void *data)

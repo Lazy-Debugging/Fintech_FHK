@@ -1144,6 +1144,8 @@ void initializeCamera() {
 struct quirc *qrEngine = nullptr;
 char lastScannedQr[96] = "";
 uint32_t lastScannedQrAt = 0;
+volatile int lastDetectedCount = 0;
+char lastScanStatus[64] = "Standby";
 
 void setupQrEngine() {
   qrEngine = quirc_new();
@@ -1266,8 +1268,10 @@ void qrScanTask(void *pvParameters) {
             quirc_end(qrEngine);
 
             int count = quirc_count(qrEngine);
+            lastDetectedCount = count;
             if (count > 0) {
               Serial.printf("[QR SCAN] Terdeteksi %d kandidat QR di frame!\n", count);
+              snprintf(lastScanStatus, sizeof(lastScanStatus), "%d kandidat pola", count);
             }
             for (int i = 0; i < count; i++) {
               quirc_extract(qrEngine, i, &qrCode);
@@ -1279,9 +1283,11 @@ void qrScanTask(void *pvParameters) {
                 memcpy(tokenStr, qrData.payload, len);
                 tokenStr[len] = '\0';
 
+                snprintf(lastScanStatus, sizeof(lastScanStatus), "DECODE_OK: %s", tokenStr);
                 handleDetectedQrToken(tokenStr);
                 break;
               } else {
+                snprintf(lastScanStatus, sizeof(lastScanStatus), "Err: %s", quirc_strerror(decErr));
                 Serial.printf("[QR SCAN] Decode kandidat #%d gagal: %s (fokus kamera / blur)\n", i, quirc_strerror(decErr));
               }
             }
@@ -1342,15 +1348,17 @@ esp_err_t streamHandler(httpd_req_t *req) {
 }
 
 esp_err_t dataHandler(httpd_req_t *req) {
-  char json[520];
+  char json[640];
   snprintf(json, sizeof(json),
     "{\"kiosk_id\":\"%s\",\"active_job\":\"%s\",\"distance_cm\":%.2f,\"flow_lpm\":%.3f,"
-    "\"session_ml\":%.0f,\"target_ml\":%u,\"pump\":%s,\"mqtt\":%s,\"state\":\"%s\",\"msg\":\"%s\"}",
+    "\"session_ml\":%.0f,\"target_ml\":%u,\"pump\":%s,\"mqtt\":%s,\"state\":\"%s\",\"msg\":\"%s\","
+    "\"last_qr\":\"%s\",\"qr_count\":%d,\"qr_status\":\"%s\"}",
     KIOSK_ID, activeJobId, (float)distanceCm, (float)flowLitersPerMinute,
     (float)sessionLiters * 1000.0f, targetVolumeMl,
     pumpRunning ? "true" : "false",
     mqttClient.connected() ? "true" : "false",
-    stateName(fillState), statusMsg);
+    stateName(fillState), statusMsg,
+    lastScannedQr, lastDetectedCount, lastScanStatus);
   httpd_resp_set_type(req, "application/json");
   return httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
 }
@@ -1387,7 +1395,9 @@ esp_err_t indexHandler(httpd_req_t *req) {
     "<b>Status:</b> ${d.state} (${d.msg})<br>"
     "<b>Jarak Ultrasonik:</b> ${d.distance_cm} cm<br>"
     "<b>Aliran:</b> ${d.flow_lpm} L/min | <b>Volume:</b> ${d.session_ml} / ${d.target_ml} mL<br>"
-    "<b>Pompa:</b> ${d.pump} | <b>MQTT Broker:</b> ${d.mqtt}`;"
+    "<b>Pompa:</b> ${d.pump} | <b>MQTT Broker:</b> ${d.mqtt}<br>"
+    "<b>Pemindai QR:</b> ${d.qr_status} (Kandidat: ${d.qr_count})<br>"
+    "<b>QR Terakhir:</b> ${d.last_qr || '-'}`;"
     "}).catch(()=>{});},1000);"
     "</script></body></html>";
 
