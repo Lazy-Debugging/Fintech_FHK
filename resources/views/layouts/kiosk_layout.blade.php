@@ -128,9 +128,9 @@
                 <span>UV-C Purifier: <strong class="text-white">Active (99.9%)</strong></span>
             </div>
 
-            <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-950/50 border border-cyan-800/60 text-cyan-300">
-                <i class="fa-solid fa-temperature-three-quarters text-cyan-400"></i>
-                <span>Cold: <strong class="text-white">7.5°C</strong></span>
+            <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/50 border border-emerald-800/60 text-emerald-300">
+                <i class="fa-solid fa-droplet text-emerald-400"></i>
+                <span>Suhu: <strong class="text-white">Normal</strong></span>
             </div>
 
             <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700 text-slate-300">

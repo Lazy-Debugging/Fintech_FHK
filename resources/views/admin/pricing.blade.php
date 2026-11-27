@@ -13,7 +13,7 @@
                 </div>
                 <div>
                     <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">Pengaturan Harga Kios</h2>
-                    <p class="text-xs text-slate-400 mt-0.5">Atur tarif penjualan air (Cold / Normal) secara global atau per unit Kios.</p>
+                    <p class="text-xs text-slate-400 mt-0.5">Atur tarif penjualan air murni higienis secara global atau per unit Kios.</p>
                 </div>
             </div>
         </div>
@@ -48,43 +48,20 @@
             </button>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- COLD WATER -->
-            <div class="bg-slate-950/60 rounded-xl p-4 border border-slate-800/80 space-y-4">
-                <div class="flex items-center gap-2 text-cyan-400 font-bold text-sm border-b border-slate-800 pb-2">
-                    <i class="fa-solid fa-snowflake text-lg"></i>
-                    <span>Air Dingin (COLD)</span>
-                </div>
-                <div class="space-y-3">
-                    @foreach([250 => '250 ml (Gelas)', 500 => '500 ml (Botol Sedang)', 1000 => '1000 ml (Botol Besar/Tumbler)'] as $vol => $label)
-                        @php
-                            $globalCold = $globalPrices->firstWhere(fn($p) => $p->water_type === 'COLD' && $p->volume_ml == $vol);
-                            $priceCold = $globalCold ? $globalCold->price : ($vol == 250 ? 2000 : ($vol == 500 ? 3500 : 6000));
-                        @endphp
-                        <div class="flex items-center justify-between gap-3">
-                            <label class="text-xs text-slate-300 font-medium shrink-0 w-1/2">{{ $label }}</label>
-                            <div class="relative flex-1">
-                                <span class="absolute left-3 top-2.5 text-xs text-slate-500 font-bold">Rp</span>
-                                <input type="number" data-global-type="COLD" data-global-vol="{{ $vol }}" value="{{ $priceCold }}" min="0" step="500" class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-white focus:border-cyan-400 focus:outline-none text-right">
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-
+        <div class="max-w-2xl">
             <!-- NORMAL WATER -->
-            <div class="bg-slate-950/60 rounded-xl p-4 border border-slate-800/80 space-y-4">
+            <div class="bg-slate-950/60 rounded-xl p-5 border border-slate-800/80 space-y-4">
                 <div class="flex items-center gap-2 text-emerald-400 font-bold text-sm border-b border-slate-800 pb-2">
                     <i class="fa-solid fa-droplet text-lg"></i>
-                    <span>Air Suhu Ruang (NORMAL)</span>
+                    <span>Air Minum Murni Higienis (NORMAL)</span>
                 </div>
-                <div class="space-y-3">
+                <div class="space-y-4">
                     @foreach([250 => '250 ml (Gelas)', 500 => '500 ml (Botol Sedang)', 1000 => '1000 ml (Botol Besar/Tumbler)'] as $vol => $label)
                         @php
                             $globalNorm = $globalPrices->firstWhere(fn($p) => $p->water_type === 'NORMAL' && $p->volume_ml == $vol);
                             $priceNorm = $globalNorm ? $globalNorm->price : ($vol == 250 ? 1500 : ($vol == 500 ? 2500 : 4500));
                         @endphp
-                        <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center justify-between gap-4">
                             <label class="text-xs text-slate-300 font-medium shrink-0 w-1/2">{{ $label }}</label>
                             <div class="relative flex-1">
                                 <span class="absolute left-3 top-2.5 text-xs text-slate-500 font-bold">Rp</span>
@@ -142,32 +119,11 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- COLD -->
-                            <div class="space-y-2">
-                                <span class="text-[11px] font-bold text-cyan-400 flex items-center gap-1">
-                                    <i class="fa-solid fa-snowflake"></i> Air Dingin (COLD)
-                                </span>
-                                @foreach([250, 500, 1000] as $vol)
-                                    @php
-                                        $customP = $kiosk->prices->firstWhere(fn($p) => $p->water_type === 'COLD' && $p->volume_ml == $vol);
-                                        $globalP = $globalPrices->firstWhere(fn($p) => $p->water_type === 'COLD' && $p->volume_ml == $vol);
-                                        $pVal = $customP ? $customP->price : ($globalP ? $globalP->price : ($vol == 250 ? 2000 : ($vol == 500 ? 3500 : 6000)));
-                                    @endphp
-                                    <div class="flex items-center justify-between gap-2 text-xs">
-                                        <span class="text-slate-400">{{ $vol }} ml:</span>
-                                        <div class="relative w-36">
-                                            <span class="absolute left-2.5 top-2 text-[11px] text-slate-500 font-bold">Rp</span>
-                                            <input type="number" data-kiosk-id="{{ $kiosk->id }}" data-kiosk-type="COLD" data-kiosk-vol="{{ $vol }}" value="{{ $pVal }}" min="0" step="500" class="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-2 py-1.5 text-xs font-bold text-white focus:border-purple-400 focus:outline-none text-right">
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-
+                        <div class="max-w-xl">
                             <!-- NORMAL -->
-                            <div class="space-y-2">
-                                <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-                                    <i class="fa-solid fa-droplet"></i> Air Normal (NORMAL)
+                            <div class="space-y-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                                <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5 border-b border-slate-800 pb-2">
+                                    <i class="fa-solid fa-droplet"></i> Air Minum Murni Higienis (NORMAL)
                                 </span>
                                 @foreach([250, 500, 1000] as $vol)
                                     @php
@@ -175,9 +131,9 @@
                                         $globalP = $globalPrices->firstWhere(fn($p) => $p->water_type === 'NORMAL' && $p->volume_ml == $vol);
                                         $pVal = $customP ? $customP->price : ($globalP ? $globalP->price : ($vol == 250 ? 1500 : ($vol == 500 ? 2500 : 4500)));
                                     @endphp
-                                    <div class="flex items-center justify-between gap-2 text-xs">
-                                        <span class="text-slate-400">{{ $vol }} ml:</span>
-                                        <div class="relative w-36">
+                                    <div class="flex items-center justify-between gap-3 text-xs">
+                                        <span class="text-slate-300 font-medium">{{ $vol == 250 ? '250 ml (Gelas)' : ($vol == 500 ? '500 ml (Botol)' : '1000 ml (Tumbler)') }}:</span>
+                                        <div class="relative w-40">
                                             <span class="absolute left-2.5 top-2 text-[11px] text-slate-500 font-bold">Rp</span>
                                             <input type="number" data-kiosk-id="{{ $kiosk->id }}" data-kiosk-type="NORMAL" data-kiosk-vol="{{ $vol }}" value="{{ $pVal }}" min="0" step="500" class="w-full bg-slate-900 border border-slate-700 rounded-lg pl-8 pr-2 py-1.5 text-xs font-bold text-white focus:border-purple-400 focus:outline-none text-right">
                                         </div>
