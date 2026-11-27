@@ -1236,15 +1236,28 @@ void qrScanTask(void *pvParameters) {
             if (total > 320 * 240) total = 320 * 240;
 
             if (fb->format == PIXFORMAT_RGB565) {
-              // Konversi presisi tinggi RGB565 ke Grayscale 8-bit (dinamika penuh 0 - 250)
+              // Konversi presisi tinggi RGB565 ke Grayscale 8-bit + Auto-Contrast Stretch
               const uint8_t *p = fb->buf;
+              uint8_t minVal = 255;
+              uint8_t maxVal = 0;
               for (int i = 0; i < total; i++) {
                 uint8_t hb = p[i * 2];
                 uint8_t lb = p[i * 2 + 1];
                 uint8_t r = hb & 0xF8;
                 uint8_t g = ((hb << 5) | (lb >> 3)) & 0xFC;
                 uint8_t b = (lb << 3) & 0xF8;
-                image[i] = (uint8_t)((r + (g << 1) + b) >> 2);
+                uint8_t gray = (uint8_t)((r + (g << 1) + b) >> 2);
+                image[i] = gray;
+                if (gray < minVal) minVal = gray;
+                if (gray > maxVal) maxVal = gray;
+              }
+              // Auto-Contrast Normalization (agar QR dari layar HP/kamera burik langsung tajam)
+              int diff = maxVal - minVal;
+              if (diff > 25 && diff < 220) {
+                for (int i = 0; i < total; i++) {
+                  int val = ((image[i] - minVal) * 255) / diff;
+                  image[i] = (uint8_t)(val < 0 ? 0 : (val > 255 ? 255 : val));
+                }
               }
             } else if (fb->format == PIXFORMAT_GRAYSCALE) {
               int copyBytes = (fb->len < 320 * 240) ? fb->len : 320 * 240;
