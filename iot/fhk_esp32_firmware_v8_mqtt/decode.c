@@ -934,6 +934,8 @@ quirc_decode_error_t quirc_decode(const struct quirc_code *code,
 {
   quirc_decode_error_t err;
   struct datastream *ds = ps_malloc(sizeof(struct datastream));
+  if (!ds)
+    return QUIRC_ERROR_DATA_OVERFLOW;
 
   if ((code->size - 17) % 4)
   {

@@ -1325,12 +1325,12 @@ void quirc_end(struct quirc *q)
 void quirc_extract(const struct quirc *q, int index,
                    struct quirc_code *code)
 {
+  if (!q || index < 0 || index >= q->num_grids)
+    return;
+
   const struct quirc_grid *qr = &q->grids[index];
   int y;
   int i = 0;
-
-  if (index < 0 || index > q->num_grids)
-    return;
 
   memset(code, 0, sizeof(*code));
 

@@ -1109,7 +1109,7 @@ void initializeCamera() {
   config.pin_reset = CAM_PIN_RESET;
 
   config.xclk_freq_hz = 20000000;
-  config.pixel_format = PIXFORMAT_GRAYSCALE;
+  config.pixel_format = PIXFORMAT_RGB565;
   config.frame_size = FRAMESIZE_QVGA;
   config.jpeg_quality = 12;
 
@@ -1125,7 +1125,7 @@ void initializeCamera() {
   esp_err_t err = esp_camera_init(&config);
   cameraReady = (err == ESP_OK);
   if (cameraReady) {
-    Serial.println("Camera GC2145 initialized successfully (Grayscale QVGA).");
+    Serial.println("Camera GC2145 initialized successfully (RGB565 QVGA).");
   } else {
     Serial.printf("Camera GC2145 init FAILED: 0x%x\n", err);
   }
@@ -1206,21 +1206,25 @@ void handleDetectedQrToken(const char *token) {
 }
 
 void qrScanTask(void *pvParameters) {
-  vTaskDelay(pdMS_TO_TICKS(2500)); // Tunggu sistem boot stabil
+  vTaskDelay(pdMS_TO_TICKS(3000)); // Tunggu sistem boot stabil
   Serial.println("[QR TASK] Task pemindai QR aktif di Core 0.");
+
+  static struct quirc_code qrCode;
+  static struct quirc_data qrData;
 
   while (true) {
     if (cameraReady && qrEngine && fillState == ST_IDLE) {
       camera_fb_t *fb = esp_camera_fb_get();
       if (fb) {
         if (fb->width == 320 && fb->height == 240) {
-          uint8_t *image = quirc_begin(qrEngine, NULL, NULL);
-          if (image) {
-            if (fb->format == PIXFORMAT_GRAYSCALE) {
-              memcpy(image, fb->buf, fb->len);
-            } else if (fb->format == PIXFORMAT_RGB565) {
+          int w = 0, h = 0;
+          uint8_t *image = quirc_begin(qrEngine, &w, &h);
+          if (image && w == 320 && h == 240) {
+            int total = fb->width * fb->height;
+            if (total > 320 * 240) total = 320 * 240;
+
+            if (fb->format == PIXFORMAT_RGB565) {
               const uint16_t *rgb = (const uint16_t *)fb->buf;
-              int total = fb->width * fb->height;
               for (int i = 0; i < total; i++) {
                 uint16_t p = rgb[i];
                 uint8_t r = (p >> 11) & 0x1F;
@@ -1228,19 +1232,20 @@ void qrScanTask(void *pvParameters) {
                 uint8_t b = p & 0x1F;
                 image[i] = (uint8_t)((r * 2 + g * 3 + b) >> 2);
               }
+            } else if (fb->format == PIXFORMAT_GRAYSCALE) {
+              int copyBytes = (fb->len < 320 * 240) ? fb->len : 320 * 240;
+              memcpy(image, fb->buf, copyBytes);
             }
             quirc_end(qrEngine);
 
             int count = quirc_count(qrEngine);
             for (int i = 0; i < count; i++) {
-              struct quirc_code code;
-              struct quirc_data data;
-              quirc_extract(qrEngine, i, &code);
-              if (quirc_decode(&code, &data) == QUIRC_SUCCESS) {
+              quirc_extract(qrEngine, i, &qrCode);
+              if (quirc_decode(&qrCode, &qrData) == QUIRC_SUCCESS) {
                 char tokenStr[96] = "";
-                int len = data.payload_len;
+                int len = qrData.payload_len;
                 if (len >= sizeof(tokenStr)) len = sizeof(tokenStr) - 1;
-                memcpy(tokenStr, data.payload, len);
+                memcpy(tokenStr, qrData.payload, len);
                 tokenStr[len] = '\0';
 
                 handleDetectedQrToken(tokenStr);
@@ -1252,7 +1257,7 @@ void qrScanTask(void *pvParameters) {
         esp_camera_fb_return(fb);
       }
     }
-    vTaskDelay(pdMS_TO_TICKS(200)); // Scan interval 200 ms
+    vTaskDelay(pdMS_TO_TICKS(250)); // Scan interval 250 ms
   }
 }
 
@@ -1687,7 +1692,7 @@ void setup() {
 
   // Inisialisasi QR Code Scanner (Quirc Engine) di Core 0
   setupQrEngine();
-  xTaskCreatePinnedToCore(qrScanTask, "qr_scan", 10240, nullptr, 2, nullptr, 0);
+  xTaskCreatePinnedToCore(qrScanTask, "qr_scan", 8192, nullptr, 1, nullptr, 0);
 
   lastFlowLcdAt = millis();
   lastFlowCalcAt = millis();
