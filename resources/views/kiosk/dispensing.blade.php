@@ -31,11 +31,19 @@
             </p>
         </div>
 
-        <!-- QR Code Visual -->
-        <div class="relative p-4 bg-white rounded-2xl shadow-2xl border-4 border-slate-800 w-52 h-52 sm:w-60 sm:h-60 mx-auto flex items-center justify-center">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data={{ urlencode($transaksi->invoiceId) }}" 
-                 alt="QR Code Pengambilan {{ $transaksi->invoiceId }}" 
-                 class="w-full h-full object-contain rounded-lg">
+        <!-- QR Code Visual (High-Contrast & Wide Margin untuk Kamera ESP32) -->
+        <div class="space-y-3">
+            <div id="qrcode-pickup" class="relative p-4 bg-white rounded-2xl shadow-2xl border-4 border-slate-800 w-60 h-60 sm:w-64 sm:h-64 mx-auto flex items-center justify-center overflow-hidden">
+                <img id="fallback-qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=15&ecc=M&data={{ urlencode($transaksi->invoiceId) }}" 
+                     alt="QR Code Pengambilan {{ $transaksi->invoiceId }}" 
+                     class="w-full h-full object-contain">
+            </div>
+            <div class="text-center">
+                <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-[11px] font-mono text-cyan-300">
+                    <i class="fa-solid fa-ticket text-cyan-400"></i>
+                    <span>ID: {{ $transaksi->invoiceId }}</span>
+                </div>
+            </div>
         </div>
 
         <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -112,10 +120,31 @@
 @endsection
 
 @section('scripts')
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
     const invoiceId = "{{ $transaksi->invoiceId }}";
     const targetVolume = {{ (int) $transaksi->volume_ml }};
     const waterType = "{{ $transaksi->water_type }}";
+
+    // Render QR Code lokal resolusi tinggi dengan Quiet Zone putih yang tebal
+    document.addEventListener("DOMContentLoaded", function() {
+        const box = document.getElementById("qrcode-pickup");
+        if (box && typeof QRCode !== 'undefined') {
+            try {
+                box.innerHTML = '';
+                new QRCode(box, {
+                    text: invoiceId,
+                    width: 220,
+                    height: 220,
+                    colorDark: "#000000",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            } catch(e) {
+                console.warn("Fallback to image QR:", e);
+            }
+        }
+    });
 
     let currentVolume = 0;
     const volumeEl = document.getElementById('volume-counter');

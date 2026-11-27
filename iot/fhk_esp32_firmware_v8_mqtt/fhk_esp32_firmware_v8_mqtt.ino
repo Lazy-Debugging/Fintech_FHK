@@ -1125,7 +1125,13 @@ void initializeCamera() {
   esp_err_t err = esp_camera_init(&config);
   cameraReady = (err == ESP_OK);
   if (cameraReady) {
-    Serial.println("Camera GC2145 initialized successfully (RGB565 QVGA).");
+    sensor_t *s = esp_camera_sensor_get();
+    if (s != nullptr) {
+      if (s->set_contrast) s->set_contrast(s, 2);      // Maksimalkan kontras agar hitam & putih QR tajam
+      if (s->set_brightness) s->set_brightness(s, 0);  // Kecerahan seimbang
+      if (s->set_saturation) s->set_saturation(s, -2); // Mode monokrom/hitam-putih mengurangi noise warna
+    }
+    Serial.println("Camera GC2145 initialized successfully (RGB565 QVGA High-Contrast).");
   } else {
     Serial.printf("Camera GC2145 init FAILED: 0x%x\n", err);
   }
@@ -1211,9 +1217,15 @@ void qrScanTask(void *pvParameters) {
 
   static struct quirc_code qrCode;
   static struct quirc_data qrData;
+  static uint32_t lastQrHeartbeat = 0;
 
   while (true) {
     if (cameraReady && qrEngine && fillState == ST_IDLE) {
+      if (millis() - lastQrHeartbeat > 4000) {
+        lastQrHeartbeat = millis();
+        Serial.println("[QR SCAN] Menunggu QR Code di depan lensa kamera...");
+      }
+
       camera_fb_t *fb = esp_camera_fb_get();
       if (fb) {
         if (fb->width == 320 && fb->height == 240) {
@@ -1224,13 +1236,15 @@ void qrScanTask(void *pvParameters) {
             if (total > 320 * 240) total = 320 * 240;
 
             if (fb->format == PIXFORMAT_RGB565) {
-              const uint16_t *rgb = (const uint16_t *)fb->buf;
+              // Konversi presisi tinggi RGB565 ke Grayscale 8-bit (dinamika penuh 0 - 250)
+              const uint8_t *p = fb->buf;
               for (int i = 0; i < total; i++) {
-                uint16_t p = rgb[i];
-                uint8_t r = (p >> 11) & 0x1F;
-                uint8_t g = (p >> 5) & 0x3F;
-                uint8_t b = p & 0x1F;
-                image[i] = (uint8_t)((r * 2 + g * 3 + b) >> 2);
+                uint8_t hb = p[i * 2];
+                uint8_t lb = p[i * 2 + 1];
+                uint8_t r = hb & 0xF8;
+                uint8_t g = ((hb << 5) | (lb >> 3)) & 0xFC;
+                uint8_t b = (lb << 3) & 0xF8;
+                image[i] = (uint8_t)((r + (g << 1) + b) >> 2);
               }
             } else if (fb->format == PIXFORMAT_GRAYSCALE) {
               int copyBytes = (fb->len < 320 * 240) ? fb->len : 320 * 240;
@@ -1239,9 +1253,13 @@ void qrScanTask(void *pvParameters) {
             quirc_end(qrEngine);
 
             int count = quirc_count(qrEngine);
+            if (count > 0) {
+              Serial.printf("[QR SCAN] Terdeteksi %d kandidat QR di frame!\n", count);
+            }
             for (int i = 0; i < count; i++) {
               quirc_extract(qrEngine, i, &qrCode);
-              if (quirc_decode(&qrCode, &qrData) == QUIRC_SUCCESS) {
+              quirc_decode_error_t decErr = quirc_decode(&qrCode, &qrData);
+              if (decErr == QUIRC_SUCCESS) {
                 char tokenStr[96] = "";
                 int len = qrData.payload_len;
                 if (len >= sizeof(tokenStr)) len = sizeof(tokenStr) - 1;
@@ -1250,6 +1268,8 @@ void qrScanTask(void *pvParameters) {
 
                 handleDetectedQrToken(tokenStr);
                 break;
+              } else {
+                Serial.printf("[QR SCAN] Decode kandidat #%d gagal: %s (fokus kamera / blur)\n", i, quirc_strerror(decErr));
               }
             }
           }
@@ -1257,7 +1277,7 @@ void qrScanTask(void *pvParameters) {
         esp_camera_fb_return(fb);
       }
     }
-    vTaskDelay(pdMS_TO_TICKS(250)); // Scan interval 250 ms
+    vTaskDelay(pdMS_TO_TICKS(150)); // Respons cepat ~6.5 FPS
   }
 }
 
