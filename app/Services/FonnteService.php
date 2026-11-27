@@ -241,4 +241,32 @@ class FonnteService
             'countryCode' => '62',
         ]);
     }
+
+    /**
+     * Kirim Notifikasi Peringatan Stok Air Menipis / Habis ke Nomor Admin/Teknisi
+     */
+    public static function sendWaterAlert(mixed $kiosk, int $remainingMl, float $pct, bool $isCritical): array
+    {
+        $adminPhone = self::getEnvValue('ADMIN_PHONE', self::getEnvValue('WHATSAPP_ADMIN', '0812000000'));
+        $statusText = $isCritical ? "🚨 *PERINGATAN KRITIS: AIR HABIS!*" : "⚠️ *PERINGATAN: STOK AIR MENIPIS*";
+        
+        $kioskName = $kiosk->name ?? 'FHK Kios';
+        $kioskId = $kiosk->id ?? 'FHK-JAKARTA-01';
+        $location = $kiosk->location ?? '-';
+        $capacityMl = (int) round(($kiosk->tank_capacity_liters ?? 20.0) * 1000.0);
+
+        $message = "{$statusText}\n\n"
+            . "Kios: *{$kioskName}* ({$kioskId})\n"
+            . "Lokasi: {$location}\n"
+            . "Sisa Stok: *" . number_format($remainingMl, 0, ',', '.') . " mL* (~ " . number_format($remainingMl / 1000.0, 1) . " Liter)\n"
+            . "Kapasitas Tangki: " . number_format($capacityMl, 0, ',', '.') . " mL\n"
+            . "Persentase: *" . round($pct, 1) . "%*\n\n"
+            . ($isCritical 
+                ? "⛔ Pembelian di kios otomatis dinonaktifkan untuk mencegah kegagalan penuangan. Segera lakukan pengisian ulang tangki/galon!"
+                : "ℹ️ Harap jadwalkan pengisian ulang galon/tangki air segera.") . "\n\n"
+            . "Waktu: " . date('d-m-Y H:i:s') . " WIB\n"
+            . "FHK Smart IoT Kiosk System";
+
+        return self::sendMessage($adminPhone, $message);
+    }
 }

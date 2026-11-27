@@ -3,6 +3,8 @@
 $files = [
     'config/mqtt.php',
     'app/Services/MqttKioskService.php',
+    'app/Services/FonnteService.php',
+    'app/Services/EmailNotificationService.php',
     'app/Console/Commands/KioskMqttListenCommand.php',
     'app/Http/Controllers/Kiosk/OrderController.php',
     'app/Http/Controllers/Payment/AiyoCallbackController.php',
@@ -302,5 +304,7 @@ CODE;
 $finalContent = str_replace('__PAYLOAD_PLACEHOLDER__', addcslashes($payloadJson, "'\\"), $template);
 
 file_put_contents(__DIR__ . '/update_iot.php', $finalContent);
-file_put_contents(dirname(__DIR__) . '/public/update_iot.php', $finalContent);
+if (is_dir(__DIR__ . '/public')) {
+    @file_put_contents(__DIR__ . '/public/update_iot.php', $finalContent);
+}
 echo "Successfully generated update_iot.php (" . strlen($finalContent) . " bytes)\n";

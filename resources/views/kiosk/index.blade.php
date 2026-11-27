@@ -32,54 +32,24 @@
         <div class="absolute -top-24 -right-24 w-60 h-60 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div class="absolute -bottom-24 -left-24 w-60 h-60 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        <!-- 1. Pilihan Suhu Air (Water Temperature) -->
-        <div class="space-y-3">
-            <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                <span class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs">1</span>
-                Pilih Suhu Air
-            </label>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                
-                <!-- Opsi Dingin (Cold) -->
-                <div onclick="selectTemperature('COLD')" id="opt-cold"
-                     class="temp-card active cursor-pointer p-5 rounded-2xl border-2 border-cyan-500 bg-gradient-to-br from-cyan-950/40 via-slate-900/60 to-slate-900/80 hover:border-cyan-400 transition-all duration-300 relative group">
-                    <div class="flex items-start justify-between">
-                        <div class="w-12 h-12 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-2xl group-hover:scale-110 transition">
-                            <i class="fa-solid fa-snowflake"></i>
-                        </div>
-                        <span class="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-xs font-semibold border border-cyan-500/30">
-                            ~ 7.5°C Chilled
+        <!-- 1. Kualitas Air Higienis (Pure Ambient / Normal) -->
+        <div class="p-4 sm:p-5 rounded-2xl border-2 border-emerald-500/30 bg-gradient-to-r from-emerald-950/30 via-slate-900/60 to-cyan-950/30 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-2xl shrink-0">
+                    <i class="fa-solid fa-droplet"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="text-base sm:text-lg font-bold text-white">Air Minum Murni Higienis (Normal)</h3>
+                        <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 text-[11px] font-semibold border border-emerald-500/20">
+                            ~ 25°C Suhu Ruang
                         </span>
                     </div>
-                    <div class="mt-4">
-                        <h3 class="text-xl font-bold text-white group-hover:text-cyan-300 transition">Air Dingin (Cold)</h3>
-                        <p class="text-xs text-slate-400 mt-1">Sangat segar seketika, cocok untuk botol olahraga & pelepas dahaga terik siang.</p>
-                    </div>
-                    <div class="absolute bottom-4 right-4 check-indicator text-cyan-400 text-xl">
-                        <i class="fa-solid fa-circle-check"></i>
-                    </div>
+                    <p class="text-xs text-slate-400 mt-0.5">Suhu ruangan ramah lambung & pencernaan, kaya mineral alami dan disterilisasi UV-C.</p>
                 </div>
-
-                <!-- Opsi Normal (Ambient) -->
-                <div onclick="selectTemperature('NORMAL')" id="opt-normal"
-                     class="temp-card cursor-pointer p-5 rounded-2xl border-2 border-slate-800 bg-slate-900/40 hover:border-slate-700 transition-all duration-300 relative group">
-                    <div class="flex items-start justify-between">
-                        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-2xl group-hover:scale-110 transition">
-                            <i class="fa-solid fa-droplet"></i>
-                        </div>
-                        <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-300 text-xs font-semibold border border-emerald-500/20">
-                            ~ 25°C Room Temp
-                        </span>
-                    </div>
-                    <div class="mt-4">
-                        <h3 class="text-xl font-bold text-white group-hover:text-emerald-300 transition">Air Normal (Ambient)</h3>
-                        <p class="text-xs text-slate-400 mt-1">Suhu ruangan ramah pencernaan, ideal untuk obat, vitamin, dan hidrasi harian.</p>
-                    </div>
-                    <div class="absolute bottom-4 right-4 check-indicator hidden text-emerald-400 text-xl">
-                        <i class="fa-solid fa-circle-check"></i>
-                    </div>
-                </div>
-
+            </div>
+            <div class="hidden sm:flex text-emerald-400 text-2xl pr-2">
+                <i class="fa-solid fa-circle-check"></i>
             </div>
         </div>
 
@@ -230,9 +200,10 @@
 
 @section('scripts')
 <script>
-    let selectedTemp = 'COLD';
-    let selectedVol = 500;
+    let selectedTemp = 'NORMAL';
+    let selectedVol = 250;
     const kioskId = "{{ $kiosk->id }}";
+    const isWaterEmpty = {{ ($kiosk->current_water_level_pct <= 5.0 || $kiosk->status === 'OUT_OF_WATER') ? 'true' : 'false' }};
 
     // Auto-polling Layar Kios: Cek apakah ada penuangan air yang dipicu dari Scan HP
     const pollDispenseBaseUrl = "{{ url('api/kiosk') }}";
@@ -247,40 +218,34 @@
             .catch(() => {});
     }, 2000);
 
-    // Matrix Harga Dynamic dari Database
+    // Matrix Harga Dynamic dari Database (Khusus Air Normal)
     const priceMatrix = {!! json_encode($priceMatrix ?? [
-        'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ],
-        'NORMAL' => [ 250 => 1, 500 => 2500, 1000 => 4500 ]
+        'NORMAL' => [ 250 => 1, 500 => 2500, 1000 => 4500 ],
+        'COLD'   => [ 250 => 2000, 500 => 3500, 1000 => 6000 ]
     ]) !!};
 
     function updatePriceUI() {
-        const currentPrices = priceMatrix[selectedTemp];
-        document.getElementById('price-250').textContent = 'Rp ' + currentPrices[250].toLocaleString('id-ID');
-        document.getElementById('price-500').textContent = 'Rp ' + currentPrices[500].toLocaleString('id-ID');
-        document.getElementById('price-1000').textContent = 'Rp ' + currentPrices[1000].toLocaleString('id-ID');
+        const currentPrices = priceMatrix['NORMAL'] || priceMatrix[selectedTemp] || { 250: 1, 500: 2500, 1000: 4500 };
+        document.getElementById('price-250').textContent = 'Rp ' + (currentPrices[250] || 1).toLocaleString('id-ID');
+        document.getElementById('price-500').textContent = 'Rp ' + (currentPrices[500] || 2500).toLocaleString('id-ID');
+        document.getElementById('price-1000').textContent = 'Rp ' + (currentPrices[1000] || 4500).toLocaleString('id-ID');
 
-        const total = currentPrices[selectedVol];
+        const total = currentPrices[selectedVol] || 1;
         document.getElementById('display-total-price').textContent = 'Rp ' + total.toLocaleString('id-ID');
-    }
 
-    function selectTemperature(temp) {
-        selectedTemp = temp;
-        const coldCard = document.getElementById('opt-cold');
-        const normalCard = document.getElementById('opt-normal');
+        if (isWaterEmpty) {
+            const btn = document.getElementById('btn-pay');
+            btn.disabled = true;
+            btn.classList.remove('bg-gradient-to-r', 'from-cyan-500', 'to-blue-600', 'hover:from-cyan-400');
+            btn.classList.add('bg-slate-800', 'text-slate-500', 'cursor-not-allowed');
+            btn.innerHTML = '<i class="fa-solid fa-ban text-rose-400 text-lg"></i> <span>Stok Air Sedang Habis</span>';
 
-        if (temp === 'COLD') {
-            coldCard.className = 'temp-card active cursor-pointer p-5 rounded-2xl border-2 border-cyan-500 bg-gradient-to-br from-cyan-950/40 via-slate-900/60 to-slate-900/80 transition relative group';
-            normalCard.className = 'temp-card cursor-pointer p-5 rounded-2xl border-2 border-slate-800 bg-slate-900/40 hover:border-slate-700 transition relative group';
-            coldCard.querySelector('.check-indicator').classList.remove('hidden');
-            normalCard.querySelector('.check-indicator').classList.add('hidden');
-        } else {
-            normalCard.className = 'temp-card active cursor-pointer p-5 rounded-2xl border-2 border-emerald-500 bg-gradient-to-br from-emerald-950/40 via-slate-900/60 to-slate-900/80 transition relative group';
-            coldCard.className = 'temp-card cursor-pointer p-5 rounded-2xl border-2 border-slate-800 bg-slate-900/40 hover:border-slate-700 transition relative group';
-            normalCard.querySelector('.check-indicator').classList.remove('hidden');
-            coldCard.querySelector('.check-indicator').classList.add('hidden');
+            const errBox = document.getElementById('order-error-box');
+            if (errBox) {
+                errBox.querySelector('span').textContent = 'Stok air di tangki kios habis. Mohon tunggu proses isi ulang maintenance.';
+                errBox.classList.remove('hidden');
+            }
         }
-
-        updatePriceUI();
     }
 
     function selectVolume(vol) {
@@ -298,12 +263,14 @@
     }
 
     function submitOrder() {
+        if (isWaterEmpty) {
+            alert('Stok air di tangki kios habis. Mohon tunggu proses isi ulang maintenance.');
+            return;
+        }
+
         const btn = document.getElementById('btn-pay');
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i> <span>Membuka AiYO QRIS...</span>';
-
-        const currentPrices = priceMatrix[selectedTemp];
-        const total = currentPrices[selectedVol];
 
         @auth
         const voucherInput = document.getElementById('voucher-code');
@@ -325,7 +292,7 @@
             },
             body: JSON.stringify({
                 kiosk_id:    kioskId,
-                water_type:  selectedTemp,
+                water_type:  'NORMAL',
                 volume_ml:   selectedVol,
                 voucher_code: voucherCode || undefined,
                 user_email:  "{{ auth()->user()->email ?? '' }}",

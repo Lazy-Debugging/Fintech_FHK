@@ -111,14 +111,39 @@ class Esp32BridgeController extends Controller
             'dispense_completed_at' => now(),
         ]);
 
-        // Kurangi estimasi kapasitas tanki air
+        // Kurangi estimasi kapasitas tanki air presisi berdasarkan output penjualan (mL)
         $litersUsed = $dispensedMl / 1000.0;
-        $newLevelPct = max(0, $kiosk->current_water_level_pct - (($litersUsed / $kiosk->tank_capacity_liters) * 100));
+        $tankCapLiters = max(1.0, (float) ($kiosk->tank_capacity_liters ?? 20.0));
+        $newLevelPct = max(0.0, (float) $kiosk->current_water_level_pct - (($litersUsed / $tankCapLiters) * 100.0));
+        $newLevelPct = round($newLevelPct, 1);
+        $remainingMl = (int) round(($tankCapLiters * 1000.0) * ($newLevelPct / 100.0));
+
+        $newKioskStatus = ($newLevelPct <= 5.0) ? 'OUT_OF_WATER' : 'ONLINE';
+
         $kiosk->update([
-            'status' => 'ONLINE',
-            'current_water_level_pct' => round($newLevelPct, 1),
+            'status' => $newKioskStatus,
+            'current_water_level_pct' => $newLevelPct,
             'last_heartbeat' => now()
         ]);
+
+        // Kirim notifikasi otomatis jika stok air menipis (<20%) atau habis (<=5%)
+        try {
+            if ($newLevelPct <= 5.0) {
+                if (class_exists(\App\Services\FonnteService::class)) {
+                    \App\Services\FonnteService::sendWaterAlert($kiosk, $remainingMl, $newLevelPct, true);
+                }
+                if (class_exists(\App\Services\EmailNotificationService::class)) {
+                    \App\Services\EmailNotificationService::sendWaterAlert($kiosk, $remainingMl, $newLevelPct, true);
+                }
+            } elseif ($newLevelPct <= 20.0) {
+                if (class_exists(\App\Services\FonnteService::class)) {
+                    \App\Services\FonnteService::sendWaterAlert($kiosk, $remainingMl, $newLevelPct, false);
+                }
+                if (class_exists(\App\Services\EmailNotificationService::class)) {
+                    \App\Services\EmailNotificationService::sendWaterAlert($kiosk, $remainingMl, $newLevelPct, false);
+                }
+            }
+        } catch (\Throwable $eNotify) {}
 
         // Update akumulasi pemakaian filter dan lampu UV
         $filters = FilterMaintenance::where('kiosk_id', $kioskId)->get();

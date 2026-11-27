@@ -20,6 +20,10 @@
         </div>
 
         <div class="grid w-full sm:w-auto grid-cols-1 sm:flex items-stretch gap-2 sm:gap-3">
+            <button onclick="openRefillModal()" class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40">
+                <i class="fa-solid fa-faucet-drip"></i>
+                <span>Isi Ulang Air (Refill)</span>
+            </button>
             <button onclick="triggerEmergencyUv()" class="px-4 py-2.5 rounded-xl bg-purple-900/50 hover:bg-purple-800/60 text-purple-200 border border-purple-700/60 text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-purple-950/40">
                 <i class="fa-solid fa-shield-virus text-purple-400"></i>
                 <span>Jalankan Sterilisasi UV Sekarang</span>
@@ -55,31 +59,31 @@
 
         <div class="admin-card rounded-2xl p-4 sm:p-5 space-y-2">
             <div class="flex items-center justify-between text-xs text-slate-400">
-                <span>Air Dikeluarkan</span>
+                <span>Output Air Terjual</span>
                 <div class="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
                     <i class="fa-solid fa-bottle-water"></i>
                 </div>
             </div>
             <div class="text-xl sm:text-2xl font-black text-white break-words">
-                {{ number_format($totalLitersDispensed, 1, ',', '.') }} <span class="text-base text-slate-400 font-normal">Liter</span>
+                {{ number_format($totalWaterSoldMl ?? ($totalLitersDispensed * 1000), 0, ',', '.') }} <span class="text-base text-slate-400 font-normal">mL</span>
             </div>
             <div class="text-[11px] text-cyan-400 font-medium">
-                Tersaring & disterilkan UV
+                ~ {{ number_format($totalLitersDispensed, 1, ',', '.') }} Liter dari penjualan
             </div>
         </div>
 
         <div class="admin-card rounded-2xl p-4 sm:p-5 space-y-2">
             <div class="flex items-center justify-between text-xs text-slate-400">
-                <span>Suhu Air Dingin</span>
-                <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center">
-                    <i class="fa-solid fa-temperature-arrow-down"></i>
+                <span>Sisa Stok Air Tangki</span>
+                <div class="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center">
+                    <i class="fa-solid fa-flask-vial"></i>
                 </div>
             </div>
             <div class="text-xl sm:text-2xl font-black text-white">
-                {{ $selectedKiosk->current_temp_celsius ?? 7.5 }}°C
+                {{ number_format($remainingWaterMl ?? 0, 0, ',', '.') }} <span class="text-base text-slate-400 font-normal">mL</span>
             </div>
-            <div class="text-[11px] text-sky-400 font-medium">
-                Kompresor Chiller Optimal
+            <div class="text-[11px] font-semibold {{ ($selectedKiosk->current_water_level_pct <= 5.0 || $selectedKiosk->status === 'OUT_OF_WATER') ? 'text-rose-400' : (($selectedKiosk->current_water_level_pct <= 20.0) ? 'text-amber-400' : 'text-emerald-400') }}">
+                {{ $selectedKiosk->current_water_level_pct }}% ({{ ($selectedKiosk->current_water_level_pct <= 5.0 || $selectedKiosk->status === 'OUT_OF_WATER') ? 'Stok Habis / Out of Water' : (($selectedKiosk->current_water_level_pct <= 20.0) ? 'Stok Menipis' : 'Stok Optimal') }})
             </div>
         </div>
 
@@ -139,14 +143,26 @@
                 </div>
             </div>
 
-            <div class="text-xs text-slate-400 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 space-y-1">
+            <div class="text-xs text-slate-400 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 space-y-1.5 font-mono">
                 <div class="flex justify-between">
-                    <span>Ambang Batas Minimum:</span>
-                    <span class="text-amber-400 font-bold">10% (5 Liter)</span>
+                    <span class="font-sans">Kapasitas Input:</span>
+                    <span class="text-white font-bold">{{ number_format($tankCapacityMl ?? 20000, 0, ',', '.') }} mL</span>
                 </div>
                 <div class="flex justify-between">
-                    <span>Status Dispenser:</span>
-                    <span class="text-emerald-400 font-bold">Siap Melayani Pengisian</span>
+                    <span class="font-sans">Output Terjual:</span>
+                    <span class="text-cyan-400 font-bold">- {{ number_format($totalWaterSoldMl ?? 0, 0, ',', '.') }} mL</span>
+                </div>
+                <div class="flex justify-between border-t border-slate-800 pt-1">
+                    <span class="font-sans font-bold">Sisa Air Tangki:</span>
+                    <span class="{{ ($selectedKiosk->current_water_level_pct <= 5.0 || $selectedKiosk->status === 'OUT_OF_WATER') ? 'text-rose-400 font-black' : 'text-emerald-400 font-bold' }}">
+                        {{ number_format($remainingWaterMl ?? 0, 0, ',', '.') }} mL ({{ $selectedKiosk->current_water_level_pct }}%)
+                    </span>
+                </div>
+                <div class="flex justify-between pt-1">
+                    <span class="font-sans">Status Kios:</span>
+                    <span class="{{ ($selectedKiosk->current_water_level_pct <= 5.0 || $selectedKiosk->status === 'OUT_OF_WATER') ? 'text-rose-400 font-black' : 'text-emerald-400 font-bold' }}">
+                        {{ ($selectedKiosk->current_water_level_pct <= 5.0 || $selectedKiosk->status === 'OUT_OF_WATER') ? 'OUT OF WATER' : 'SIAP MELAYANI' }}
+                    </span>
                 </div>
             </div>
         </div>
@@ -308,11 +324,114 @@
 
     </div>
 
+    <!-- Modal Input Isi Ulang Air (Refill) -->
+    <div id="refill-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="admin-card rounded-2xl max-w-md w-full p-6 space-y-5 border border-slate-700 shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-faucet-drip text-emerald-400"></i>
+                    <span>Input Pengisian Ulang Air (Refill)</span>
+                </h3>
+                <button type="button" onclick="closeRefillModal()" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-300">
+                Pencatatan volume air yang baru saja dituangkan teknisi ke dalam tangki dispenser kios <b>{{ $selectedKiosk->name }}</b>.
+            </p>
+
+            <div class="space-y-3 text-xs">
+                <label class="block font-bold text-slate-300">Pilih Volume Pengisian:</label>
+                <div class="grid grid-cols-3 gap-2">
+                    <button type="button" onclick="setRefillPreset(19)" class="p-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-emerald-500 text-center font-bold text-white transition focus:border-emerald-400 focus:bg-emerald-950/30">
+                        19 Liter<br><span class="text-[10px] text-slate-400 font-normal">1 Galon Std</span>
+                    </button>
+                    <button type="button" onclick="setRefillPreset(20)" class="p-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-emerald-500 text-center font-bold text-white transition focus:border-emerald-400 focus:bg-emerald-950/30">
+                        20 Liter<br><span class="text-[10px] text-slate-400 font-normal">Tangki Sedang</span>
+                    </button>
+                    <button type="button" onclick="setRefillPreset(50)" class="p-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-emerald-500 text-center font-bold text-white transition focus:border-emerald-400 focus:bg-emerald-950/30">
+                        50 Liter<br><span class="text-[10px] text-slate-400 font-normal">Tangki Besar</span>
+                    </button>
+                </div>
+
+                <div class="pt-2">
+                    <label for="refill-liters-input" class="block font-bold text-slate-400 mb-1">Volume Kustom (Liter):</label>
+                    <input type="number" id="refill-liters-input" step="0.5" min="1" max="500" value="19"
+                           class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:border-emerald-400 focus:outline-none">
+                    <span class="text-[11px] text-slate-400 mt-1 block">Setara dengan: <b id="refill-ml-preview" class="text-emerald-400">19.000 mL</b></span>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+                <button type="button" onclick="closeRefillModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition">
+                    Batal
+                </button>
+                <button type="button" id="btn-submit-refill" onclick="submitRefill()" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-950/50">
+                    <i class="fa-solid fa-check"></i>
+                    <span>Simpan & Pulihkan Kios</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
 </div>
 @endsection
 
 @section('scripts')
 <script>
+    function openRefillModal() {
+        document.getElementById('refill-modal').classList.remove('hidden');
+    }
+
+    function closeRefillModal() {
+        document.getElementById('refill-modal').classList.add('hidden');
+    }
+
+    function setRefillPreset(liters) {
+        const input = document.getElementById('refill-liters-input');
+        input.value = liters;
+        updateRefillPreview();
+    }
+
+    function updateRefillPreview() {
+        const input = document.getElementById('refill-liters-input');
+        const liters = parseFloat(input.value) || 0;
+        const ml = Math.round(liters * 1000);
+        document.getElementById('refill-ml-preview').textContent = ml.toLocaleString('id-ID') + ' mL';
+    }
+
+    document.getElementById('refill-liters-input')?.addEventListener('input', updateRefillPreview);
+
+    async function submitRefill() {
+        const input = document.getElementById('refill-liters-input');
+        const liters = parseFloat(input.value) || 19;
+        const btn = document.getElementById('btn-submit-refill');
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyimpan...';
+
+        try {
+            const res = await fetch("{{ route('admin.refill_water', ['kioskId' => $selectedKiosk->id]) }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    refill_liters: liters
+                })
+            });
+            const data = await res.json();
+            alert(data.message || 'Pengisian ulang air berhasil dicatat!');
+            window.location.reload();
+        } catch (e) {
+            alert('Gagal mencatat pengisian ulang air.');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Simpan & Pulihkan Kios';
+        }
+    }
     async function triggerEmergencyUv() {
         if (!confirm('Jalankan siklus sterilisasi UV manual pada pipa & nozzle kios sekarang?')) return;
 

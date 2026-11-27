@@ -30,7 +30,7 @@ class OrderController extends Controller
     {
         $validated = $request->validate([
             'kiosk_id'    => 'required|string',
-            'water_type'  => 'required|in:NORMAL,COLD',
+            'water_type'  => 'nullable|string',
             'volume_ml'   => 'required|integer|min:100|max:5000',
             'user_name'   => 'nullable|string|max:100',
             'user_email'  => 'nullable|email|max:100',
@@ -49,7 +49,7 @@ class OrderController extends Controller
             ], 404);
         }
 
-        if ($kiosk->current_water_level_pct <= 5.0) {
+        if ($kiosk->current_water_level_pct <= 5.0 || $kiosk->status === 'OUT_OF_WATER') {
             if (!$request->expectsJson() && !$request->ajax()) {
                 return redirect()->back()->with('error', 'Stok air di tangki kios habis. Mohon tunggu proses isi ulang maintenance.');
             }
@@ -59,7 +59,10 @@ class OrderController extends Controller
             ], 400);
         }
 
-        $waterTypeKey = strtoupper($validated['water_type']);
+        $waterTypeKey = strtoupper($validated['water_type'] ?? 'NORMAL');
+        if (!in_array($waterTypeKey, ['NORMAL', 'COLD'])) {
+            $waterTypeKey = 'NORMAL';
+        }
         $volumeMlVal  = (int) $validated['volume_ml'];
 
         // Harga dari database dengan fallback ke hardcoded (mencegah crash jika tabel belum migrasi)

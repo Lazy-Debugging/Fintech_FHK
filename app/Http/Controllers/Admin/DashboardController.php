@@ -27,6 +27,10 @@ class DashboardController extends Controller
         $completedTransactions = Transaksi::where('kiosk_id', $kioskId)->where('status', 'COMPLETED')->count();
         $totalRevenue = Transaksi::where('kiosk_id', $kioskId)->where('status', 'COMPLETED')->sum('payAmount');
         $totalLitersDispensed = Transaksi::where('kiosk_id', $kioskId)->where('status', 'COMPLETED')->sum('volume_ml') / 1000.0;
+        $totalWaterSoldMl = (int) Transaksi::where('kiosk_id', $kioskId)->where('status', 'COMPLETED')->sum('volume_ml');
+        
+        $tankCapacityMl = (int) round(($selectedKiosk->tank_capacity_liters ?? 20.0) * 1000.0);
+        $remainingWaterMl = (int) round($tankCapacityMl * (($selectedKiosk->current_water_level_pct ?? 100.0) / 100.0));
 
         // Transaksi terbaru
         $recentTransactions = Transaksi::where('kiosk_id', $kioskId)
@@ -53,6 +57,9 @@ class DashboardController extends Controller
             'completedTransactions',
             'totalRevenue',
             'totalLitersDispensed',
+            'totalWaterSoldMl',
+            'remainingWaterMl',
+            'tankCapacityMl',
             'recentTransactions',
             'filters',
             'uvSchedules',
@@ -101,6 +108,50 @@ class DashboardController extends Controller
         return response()->json([
             'success' => true,
             'message' => "Filter '{$filter->filter_name}' berhasil di-reset ke kondisi 100% baru."
+        ]);
+    }
+
+    /**
+     * Input Isi Ulang Air (Refill) dari Teknisi / Admin Kios
+     */
+    public function refillWater(Request $request, string $kioskId): JsonResponse
+    {
+        $kiosk = Kiosk::findOrFail($kioskId);
+
+        $refillLiters = (float) $request->input('refill_liters', 19.0); // Default 1 Galon 19 L
+        if ($refillLiters <= 0) {
+            $refillLiters = 19.0;
+        }
+
+        // Update kapasitas tangki jika diinput lebih besar dari tangki saat ini
+        $newCapacity = max((float)$kiosk->tank_capacity_liters, $refillLiters);
+
+        $kiosk->update([
+            'tank_capacity_liters'    => $newCapacity,
+            'current_water_level_pct' => 100.0,
+            'status'                  => 'ONLINE',
+            'last_heartbeat'          => now(),
+        ]);
+
+        // Catat di telemetry log
+        try {
+            TelemetryLog::create([
+                'kiosk_id'            => $kioskId,
+                'water_level_cm'      => 10.0,
+                'water_level_pct'     => 100.0,
+                'temperature_celsius' => $kiosk->current_temp_celsius ?? 25.0,
+                'uv_lamp_active'      => false,
+                'event_type'          => 'WATER_REFILL',
+                'notes'               => "Pengisian ulang tangki/galon air sebesar {$refillLiters} Liter (" . number_format($refillLiters * 1000) . " mL) berhasil dicatat.",
+                'recorded_at'         => now(),
+            ]);
+        } catch (\Throwable $e) {}
+
+        return response()->json([
+            'success' => true,
+            'message' => "Pengisian ulang air sebesar {$refillLiters} L (" . number_format($refillLiters * 1000) . " mL) berhasil! Tangki terisi penuh 100% dan kios kembali ONLINE.",
+            'new_level_pct' => 100.0,
+            'new_capacity_liters' => $newCapacity
         ]);
     }
 

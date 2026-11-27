@@ -238,6 +238,7 @@ $adminRoutes = function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/trigger-uv/{kioskId}', [DashboardController::class, 'triggerUvSterilization'])->name('trigger_uv');
     Route::post('/reset-filter/{filterId}', [DashboardController::class, 'resetFilter'])->name('reset_filter');
+    Route::post('/refill-water/{kioskId}', [DashboardController::class, 'refillWater'])->name('refill_water');
     Route::get('/simulator', [DashboardController::class, 'simulator'])->name('simulator');
     Route::get('/wiring', [DashboardController::class, 'wiring'])->name('wiring');
     Route::get('/vouchers', [VoucherController::class, 'index'])->name('vouchers.index');

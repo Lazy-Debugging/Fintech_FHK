@@ -424,4 +424,59 @@ class EmailNotificationService
 
         return $allSuccess;
     }
+
+    /**
+     * Kirim Notifikasi Email Peringatan Stok Air Menipis / Habis ke Admin
+     */
+    public static function sendWaterAlert(mixed $kiosk, int $remainingMl, float $pct, bool $isCritical): bool
+    {
+        $adminEmail = self::getEnvValue('ADMIN_EMAIL', self::getEnvValue('MAIL_FROM_ADDRESS', 'admin@mesinbayar.com'));
+        $kioskName = $kiosk->name ?? 'FHK Kios';
+        $kioskId = $kiosk->id ?? 'FHK-JAKARTA-01';
+        $location = $kiosk->location ?? '-';
+        $capacityMl = (int) round(($kiosk->tank_capacity_liters ?? 20.0) * 1000.0);
+
+        $subject = ($isCritical ? "🚨 [KRITIS] Stok Air Habis" : "⚠️ [Peringatan] Stok Air Menipis") . " - {$kioskName} ({$kioskId})";
+        
+        $body = "<div style='font-family: Arial, sans-serif; max-width: 580px; margin: 0 auto; background: #ffffff; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px;'>
+            <div style='text-align: center; margin-bottom: 20px;'>
+                <h2 style='color: " . ($isCritical ? "#dc2626" : "#d97706") . "; margin: 0;'>" . ($isCritical ? "🚨 Stok Air Tangki Habis!" : "⚠️ Peringatan: Stok Air Menipis") . "</h2>
+                <p style='color: #64748b; font-size: 14px; margin: 4px 0 0 0;'>Kios: <b>{$kioskName}</b> ({$kioskId})</p>
+            </div>
+            
+            <div style='background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 20px;'>
+                <table style='width: 100%; font-size: 14px; border-collapse: collapse;'>
+                    <tr>
+                        <td style='padding: 6px 0; color: #64748b;'>Lokasi Kios:</td>
+                        <td style='padding: 6px 0; font-weight: bold; text-align: right;'>{$location}</td>
+                    </tr>
+                    <tr>
+                        <td style='padding: 6px 0; color: #64748b;'>Sisa Stok Air:</td>
+                        <td style='padding: 6px 0; font-weight: bold; text-align: right; color: " . ($isCritical ? "#dc2626" : "#d97706") . ";'>" . number_format($remainingMl, 0, ',', '.') . " mL (~ " . number_format($remainingMl / 1000.0, 1) . " L)</td>
+                    </tr>
+                    <tr>
+                        <td style='padding: 6px 0; color: #64748b;'>Kapasitas Tangki:</td>
+                        <td style='padding: 6px 0; font-weight: bold; text-align: right;'>" . number_format($capacityMl, 0, ',', '.') . " mL</td>
+                    </tr>
+                    <tr>
+                        <td style='padding: 6px 0; color: #64748b;'>Persentase Tersisa:</td>
+                        <td style='padding: 6px 0; font-weight: bold; text-align: right;'>" . round($pct, 1) . "%</td>
+                    </tr>
+                </table>
+            </div>
+
+            <p style='font-size: 13px; color: #334155; line-height: 1.6;'>
+                " . ($isCritical 
+                    ? "<b>Status Kios:</b> OUT_OF_WATER. Pembelian di kios otomatis dinonaktifkan sementara untuk mencegah kegagalan penuangan. Silakan teknisi segera melakukan pengisian ulang galon/tangki air."
+                    : "<b>Status Kios:</b> ONLINE (Stok Menipis). Harap segera jadwalkan pengisian ulang galon air.") . "
+            </p>
+
+            <hr style='border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;'>
+            <p style='color: #94a3b8; font-size: 11px; text-align: center; margin: 0;'>
+                Notifikasi otomatis Fresh Hydration Kios (FHK) IoT Management &bull; " . date('d-m-Y H:i:s') . " WIB
+            </p>
+        </div>";
+
+        return self::sendEmail($adminEmail, $subject, $body, true);
+    }
 }

@@ -19,6 +19,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <HTTPClient.h>
+#include <Preferences.h>
 #include "esp_camera.h"
 #include "img_converters.h"
 #include "esp_http_server.h"
@@ -33,16 +34,20 @@
 // 1. IDENTITAS KIOSK & KONFIGURASI MQTT / HTTP
 // ============================================================
 
-const char *KIOSK_ID           = "FHK-JAKARTA-01"; // Wajib cocok dengan DEFAULT_KIOSK_ID di Laravel
+char KIOSK_ID[32]              = "FHK-JAKARTA-01"; // Bisa diubah dinamis via Web Setup Portal
 const char *MQTT_BROKER_IP     = "broker.emqx.io"; // Cloud MQTT Broker (Bisa diakses dari Internet & Live Server)
 const int   MQTT_BROKER_PORT   = 1883;
 const char *MQTT_USER          = "";               // Kosongkan jika broker tanpa autentikasi
 const char *MQTT_PASS          = "";
 
 // Server API Laravel Live (HTTP Polling & Reporting Fallback - Ringan & Cepat via Port 80)
-const char *SERVER_BASE_URL    = "http://app.mesinbayar.com/fhk/api/iot/kiosk/FHK-JAKARTA-01";
+char SERVER_BASE_URL[128]      = "http://app.mesinbayar.com/fhk/api/iot/kiosk/FHK-JAKARTA-01";
 const uint32_t HTTP_POLL_INTERVAL_MS = 2000; // Polling tiap 2 detik saat ST_IDLE
 uint32_t lastHttpPollAt = 0;
+
+// Variabel Konfigurasi Wi-Fi Dinamis (Disimpan di Memori NVS Permanen ESP32)
+char dynamicSsid[64] = "";
+char dynamicPass[64] = "";
 
 // Topik MQTT
 char TOPIC_COMMAND[64];
@@ -1127,6 +1132,14 @@ esp_err_t dataHandler(httpd_req_t *req) {
 }
 
 esp_err_t indexHandler(httpd_req_t *req) {
+  // Jika sedang dalam mode Fallback AP, arahkan langsung ke halaman konfigurasi Wi-Fi
+  if (usingFallbackAP) {
+    httpd_resp_set_status(req, "302 Found");
+    httpd_resp_set_hdr(req, "Location", "/wifi");
+    httpd_resp_send(req, nullptr, 0);
+    return ESP_OK;
+  }
+
   const char *html = 
     "<!DOCTYPE html><html><head><meta charset='utf-8'>"
     "<meta name='viewport' content='width=device-width, initial-scale=1'>"
@@ -1136,15 +1149,18 @@ esp_err_t indexHandler(httpd_req_t *req) {
     ".box{max-width:480px;margin:12px auto;border-radius:12px;overflow:hidden;border:2px solid #334155;background:#1e293b;}"
     "img{width:100%;min-height:240px;display:block;}"
     ".stats{max-width:480px;margin:12px auto;background:#1e293b;border-radius:12px;padding:14px;font-family:monospace;font-size:13px;text-align:left;line-height:1.6;border:1px solid #334155;}"
+    ".btn-cfg{display:inline-block;padding:10px 18px;background:linear-gradient(135deg,#0284c7,#2563eb);color:#fff;text-decoration:none;border-radius:10px;font-weight:bold;font-size:13px;margin-top:12px;}"
     "</style></head><body>"
     "<h1>📸 FHK Smart Kiosk Live Camera</h1>"
     "<div class='box'><img id='st' src='' alt='Menghubungkan ke Stream Port 81...'></div>"
     "<div class='stats' id='stt'>Memuat telemetri sensor...</div>"
+    "<a href='/wifi' class='btn-cfg'>⚙️ Konfigurasi Wi-Fi & Kiosk ID</a>"
     "<script>"
     "document.getElementById('st').src = window.location.protocol + '//' + window.location.hostname + ':81/stream';"
     "setInterval(()=>{fetch('/data').then(r=>r.json()).then(d=>{"
     "document.getElementById('stt').innerHTML = "
-    "`<b>Status:</b> ${d.state} (${d.msg})<br>"
+    "`<b>Kiosk ID:</b> " + String(KIOSK_ID) + "<br>"
+    "<b>Status:</b> ${d.state} (${d.msg})<br>"
     "<b>Jarak Ultrasonik:</b> ${d.distance_cm} cm<br>"
     "<b>Aliran:</b> ${d.flow_lpm} L/min | <b>Volume:</b> ${d.session_ml} / ${d.target_ml} mL<br>"
     "<b>Pompa:</b> ${d.pump} | <b>MQTT Broker:</b> ${d.mqtt}`;"
@@ -1153,6 +1169,144 @@ esp_err_t indexHandler(httpd_req_t *req) {
 
   httpd_resp_set_type(req, "text/html");
   return httpd_resp_send(req, html, HTTPD_RESP_USE_STRLEN);
+}
+
+// Handler Halaman Form Setup Wi-Fi Dinamis
+esp_err_t wifiSetupHandler(httpd_req_t *req) {
+  String html = "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+    "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+    "<title>FHK Kiosk - Setup Wi-Fi</title>"
+    "<style>"
+    "body{background:#0b1120;color:#f8fafc;font-family:sans-serif;margin:0;padding:16px;}"
+    ".card{max-width:440px;margin:16px auto;background:#1e293b;border-radius:16px;padding:24px;border:1px solid #334155;box-shadow:0 10px 25px rgba(0,0,0,0.5);}"
+    "h2{color:#38bdf8;font-size:18px;margin-top:0;display:flex;align-items:center;gap:8px;}"
+    "label{font-size:12px;font-weight:bold;color:#94a3b8;display:block;margin-top:14px;margin-bottom:6px;}"
+    "input,select{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:14px;outline:none;}"
+    "input:focus,select:focus{border-color:#38bdf8;}"
+    "button{width:100%;padding:12px;margin-top:18px;border-radius:8px;border:none;background:linear-gradient(135deg,#0284c7,#2563eb);color:#fff;font-size:14px;font-weight:bold;cursor:pointer;}"
+    "button:hover{opacity:0.9;}"
+    ".reset-btn{background:#dc2626;margin-top:10px;}"
+    ".info{font-size:11px;color:#94a3b8;margin-top:14px;line-height:1.5;background:#0f172a;padding:10px;border-radius:8px;}"
+    "</style></head><body><div class='card'>"
+    "<h2>📶 Konfigurasi Wi-Fi Kios FHK</h2>"
+    "<p style='font-size:12px;color:#cbd5e1;'>Pilih sinyal Wi-Fi di sekitar atau ketik manual. Data disimpan permanen di ESP32.</p>"
+    "<form action='/save-wifi' method='POST'>"
+    "<label>Pilih Wi-Fi Terdeteksi (Scan):</label>"
+    "<select onchange='if(this.value) document.getElementById(\"ssid\").value = this.value;'>"
+    "<option value=''>-- Klik untuk melihat daftar Wi-Fi --</option>";
+
+  int n = WiFi.scanNetworks();
+  for (int i = 0; i < n; ++i) {
+    String scanned = WiFi.SSID(i);
+    int32_t rssi = WiFi.RSSI(i);
+    html += "<option value='" + scanned + "'>" + scanned + " (" + String(rssi) + " dBm)</option>";
+  }
+
+  html += "</select>"
+    "<label>Nama Wi-Fi (SSID):</label>"
+    "<input type='text' name='ssid' id='ssid' value='" + String(dynamicSsid) + "' placeholder='Nama SSID Wi-Fi' required>"
+    "<label>Password Wi-Fi:</label>"
+    "<input type='password' name='pass' value='" + String(dynamicPass) + "' placeholder='Kosongkan jika Wi-Fi tanpa sandi'>"
+    "<label>Identitas Kiosk ID:</label>"
+    "<input type='text' name='kiosk' value='" + String(KIOSK_ID) + "' placeholder='Contoh: FHK-JAKARTA-01' required>"
+    "<button type='submit'>💾 Simpan & Sambungkan Sekarang</button>"
+    "</form>"
+    "<form action='/reset-wifi' method='POST' onsubmit='return confirm(\"Reset ke Wi-Fi bawaan default?\")'>"
+    "<button type='submit' class='reset-btn'>🔄 Reset Pengaturan ke Default</button>"
+    "</form>"
+    "<div class='info'>Koneksi akan disimpan di memori flash NVS. Setelah tombol ditekan, ESP32 akan reboot otomatis.</div>"
+    "<div style='text-align:center;margin-top:12px;'><a href='/' style='color:#38bdf8;font-size:12px;text-decoration:none;'>&larr; Kembali ke Live Camera</a></div>"
+    "</div></body></html>";
+
+  httpd_resp_set_type(req, "text/html");
+  return httpd_resp_send(req, html.c_str(), HTTPD_RESP_USE_STRLEN);
+}
+
+// Handler Simpan Data Wi-Fi dari Form
+esp_err_t saveWifiHandler(httpd_req_t *req) {
+  char buf[384];
+  int ret = httpd_req_recv(req, buf, sizeof(buf) - 1);
+  if (ret <= 0) return ESP_FAIL;
+  buf[ret] = '\0';
+
+  String postData = String(buf);
+  String newSsid = "";
+  String newPass = "";
+  String newKiosk = "";
+
+  auto urlDecode = [](String s) {
+    String res = "";
+    for (size_t i = 0; i < s.length(); i++) {
+      if (s[i] == '+') res += ' ';
+      else if (s[i] == '%' && i + 2 < s.length()) {
+        char hex[3] = { s[i+1], s[i+2], 0 };
+        res += (char) strtol(hex, nullptr, 16);
+        i += 2;
+      } else res += s[i];
+    }
+    return res;
+  };
+
+  int idx = 0;
+  while (idx < postData.length()) {
+    int nextAmp = postData.indexOf('&', idx);
+    if (nextAmp == -1) nextAmp = postData.length();
+    String pair = postData.substring(idx, nextAmp);
+    int eq = pair.indexOf('=');
+    if (eq != -1) {
+      String key = pair.substring(0, eq);
+      String val = urlDecode(pair.substring(eq + 1));
+      if (key == "ssid") newSsid = val;
+      else if (key == "pass") newPass = val;
+      else if (key == "kiosk") newKiosk = val;
+    }
+    idx = nextAmp + 1;
+  }
+
+  if (newSsid.length() > 0) {
+    Preferences p;
+    p.begin("fhk_cfg", false);
+    p.putString("ssid", newSsid);
+    p.putString("pass", newPass);
+    if (newKiosk.length() > 0) p.putString("kiosk", newKiosk);
+    p.end();
+
+    String respHtml = "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+      "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+      "<title>Tersimpan</title>"
+      "<style>body{background:#0b1120;color:#f8fafc;font-family:sans-serif;text-align:center;padding:40px;}</style></head><body>"
+      "<div style='max-width:380px;margin:0 auto;background:#1e293b;padding:24px;border-radius:16px;border:1px solid #22c55e;'>"
+      "<h2 style='color:#22c55e;'>✓ Pengaturan Tersimpan!</h2>"
+      "<p style='font-size:13px;color:#cbd5e1;'>ESP32 sedang reboot dan menyambung ke Wi-Fi <b>" + newSsid + "</b>...</p>"
+      "<p style='font-size:12px;color:#94a3b8;'>Periksa layar LCD 16x2 untuk melihat alamat IP yang baru.</p>"
+      "</div></body></html>";
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send(req, respHtml.c_str(), HTTPD_RESP_USE_STRLEN);
+
+    delay(1000);
+    ESP.restart();
+    return ESP_OK;
+  }
+
+  httpd_resp_send_500(req);
+  return ESP_FAIL;
+}
+
+// Handler Reset Pengaturan ke Default
+esp_err_t resetWifiHandler(httpd_req_t *req) {
+  Preferences p;
+  p.begin("fhk_cfg", false);
+  p.clear();
+  p.end();
+
+  String respHtml = "<!DOCTYPE html><html><body style='background:#0b1120;color:#fff;text-align:center;padding:40px;font-family:sans-serif;'>"
+    "<h2 style='color:#38bdf8;'>✓ Pengaturan Berhasil Direset!</h2><p>ESP32 akan reboot kembali menggunakan Wi-Fi default...</p></body></html>";
+  httpd_resp_set_type(req, "text/html");
+  httpd_resp_send(req, respHtml.c_str(), HTTPD_RESP_USE_STRLEN);
+
+  delay(1000);
+  ESP.restart();
+  return ESP_OK;
 }
 
 void startWebServers() {
@@ -1165,6 +1319,15 @@ void startWebServers() {
 
     httpd_uri_t dUri = { "/data", HTTP_GET, dataHandler, nullptr };
     httpd_register_uri_handler(controlHttpd, &dUri);
+
+    httpd_uri_t wUri = { "/wifi", HTTP_GET, wifiSetupHandler, nullptr };
+    httpd_register_uri_handler(controlHttpd, &wUri);
+
+    httpd_uri_t swUri = { "/save-wifi", HTTP_POST, saveWifiHandler, nullptr };
+    httpd_register_uri_handler(controlHttpd, &swUri);
+
+    httpd_uri_t rwUri = { "/reset-wifi", HTTP_POST, resetWifiHandler, nullptr };
+    httpd_register_uri_handler(controlHttpd, &rwUri);
   }
 
   httpd_config_t sConf = HTTPD_DEFAULT_CONFIG();
@@ -1186,37 +1349,75 @@ void startNetwork() {
   WiFi.setSleep(false);
   WiFi.mode(WIFI_STA);
 
-  // 1. Coba hubungkan ke Wi-Fi 1 (SIEGA)
-  Serial.printf("Connecting to Wi-Fi 1: %s...\n", WIFI_SSID_1);
-  lcdPrintLine(0, "WiFi Connect...");
-  lcdPrintLine(1, WIFI_SSID_1);
-  WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
+  // Baca konfigurasi dinamis dari NVS Flash
+  Preferences p;
+  p.begin("fhk_cfg", true);
+  String sSsid = p.getString("ssid", "");
+  String sPass = p.getString("pass", "");
+  String sKiosk = p.getString("kiosk", "");
+  p.end();
 
-  uint32_t t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 8000) {
-    delay(300);
-    Serial.print(".");
+  if (sKiosk.length() > 0) {
+    snprintf(KIOSK_ID, sizeof(KIOSK_ID), "%s", sKiosk.c_str());
+    snprintf(SERVER_BASE_URL, sizeof(SERVER_BASE_URL), "http://app.mesinbayar.com/fhk/api/iot/kiosk/%s", KIOSK_ID);
+    snprintf(TOPIC_COMMAND,   sizeof(TOPIC_COMMAND),   "fhk/kiosk/%s/command",   KIOSK_ID);
+    snprintf(TOPIC_STATUS,    sizeof(TOPIC_STATUS),    "fhk/kiosk/%s/status",    KIOSK_ID);
+    snprintf(TOPIC_COMPLETE,  sizeof(TOPIC_COMPLETE),  "fhk/kiosk/%s/complete",  KIOSK_ID);
+    snprintf(TOPIC_TELEMETRY, sizeof(TOPIC_TELEMETRY), "fhk/kiosk/%s/telemetry", KIOSK_ID);
   }
-  Serial.println();
+  if (sSsid.length() > 0) {
+    snprintf(dynamicSsid, sizeof(dynamicSsid), "%s", sSsid.c_str());
+    snprintf(dynamicPass, sizeof(dynamicPass), "%s", sPass.c_str());
+  }
 
-  // 2. Jika Wi-Fi 1 tidak tersambung, coba Wi-Fi 2 (OMBRA COFFEE_4G)
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.printf("Wi-Fi 1 tidak tersambung. Connecting to Wi-Fi 2 (Fallback): %s...\n", WIFI_SSID_2);
-    lcdPrintLine(0, "WiFi Fallback...");
-    lcdPrintLine(1, "OMBRA COFFEE_4G");
-    WiFi.disconnect();
-    delay(500);
-    WiFi.begin(WIFI_SSID_2, WIFI_PASSWORD_2);
+  // 1. Coba hubungkan ke Wi-Fi Dinamis (Hasil konfigurasi Web) jika ada
+  if (strlen(dynamicSsid) > 0) {
+    Serial.printf("Connecting to Dynamic Wi-Fi (Saved in NVS): %s...\n", dynamicSsid);
+    lcdPrintLine(0, "WiFi Connect...");
+    lcdPrintLine(1, dynamicSsid);
+    WiFi.begin(dynamicSsid, dynamicPass);
 
-    t0 = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - t0 < 10000) {
+    uint32_t t0 = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - t0 < 9000) {
       delay(300);
       Serial.print(".");
     }
     Serial.println();
   }
 
-  // 3. Evaluasi hasil koneksi Wi-Fi
+  // 2. Jika belum tersambung, coba Wi-Fi 1 (SIEGA)
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.printf("Connecting to Wi-Fi 1: %s...\n", WIFI_SSID_1);
+    lcdPrintLine(0, "WiFi Connect...");
+    lcdPrintLine(1, WIFI_SSID_1);
+    WiFi.begin(WIFI_SSID_1, WIFI_PASSWORD_1);
+
+    uint32_t t0 = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - t0 < 8000) {
+      delay(300);
+      Serial.print(".");
+    }
+    Serial.println();
+  }
+
+  // 3. Jika belum tersambung, coba Wi-Fi 2 (OMBRA COFFEE_4G)
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.printf("Wi-Fi 1 gagal. Connecting to Wi-Fi 2 (Fallback): %s...\n", WIFI_SSID_2);
+    lcdPrintLine(0, "WiFi Fallback...");
+    lcdPrintLine(1, "OMBRA COFFEE_4G");
+    WiFi.disconnect();
+    delay(500);
+    WiFi.begin(WIFI_SSID_2, WIFI_PASSWORD_2);
+
+    uint32_t t0 = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - t0 < 9000) {
+      delay(300);
+      Serial.print(".");
+    }
+    Serial.println();
+  }
+
+  // 4. Evaluasi hasil koneksi Wi-Fi
   if (WiFi.status() == WL_CONNECTED) {
     usingFallbackAP = false;
     Serial.printf("Wi-Fi Connected! SSID: %s | IP: ", WiFi.SSID().c_str());
@@ -1227,16 +1428,17 @@ void startNetwork() {
     lcdPrintLine(1, ipLine);
     delay(1500);
   } else {
-    Serial.println("Kedua Wi-Fi gagal terhubung. Mengaktifkan Fallback AP...");
-    lcdPrintLine(0, "WiFi Gagal!");
-    lcdPrintLine(1, "Mode Soft-AP");
+    // 5. Jika semua Wi-Fi gagal, aktifkan Soft-AP untuk konfigurasi lewat HP
+    Serial.println("Semua Wi-Fi gagal. Mengaktifkan Hotspot Setup: FHK-Kiosk-Setup...");
+    lcdPrintLine(0, "WiFi Putus / AP");
+    lcdPrintLine(1, "FHK-Kiosk-Setup");
     delay(1000);
     WiFi.disconnect(true);
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(apIP, apGateway, apSubnet);
-    WiFi.softAP(FALLBACK_AP_SSID, FALLBACK_AP_PASSWORD, 6, false, 4);
+    WiFi.softAP("FHK-Kiosk-Setup", "", 6, false, 4); // Hotspot terbuka tanpa sandi agar mudah diakses HP
     usingFallbackAP = true;
-    Serial.print("AP IP: "); Serial.println(WiFi.softAPIP());
+    Serial.print("Setup AP IP: "); Serial.println(WiFi.softAPIP());
   }
 }
 
