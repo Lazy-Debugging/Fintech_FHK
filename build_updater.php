@@ -18,6 +18,7 @@ $files = [
     'resources/views/admin/pricing.blade.php',
     'resources/views/layouts/admin_layout.blade.php',
     'resources/views/layouts/kiosk_layout.blade.php',
+    'resources/views/welcome.blade.php',
     'routes/web.php',
     'routes/api.php',
     'debug_kiosk.php',

@@ -303,10 +303,9 @@
                         <div class="device-title">FHK Gambir &middot; ONLINE</div>
                     </div>
                     <div class="device-body">
-                        <div class="mock-label">Pilih Jenis Air</div>
+                        <div class="mock-label">Air Minum Murni Higienis</div>
                         <div class="mock-temp-row">
-                            <div class="mock-tc mock-cold"><div class="mock-ti">&#10052;</div>AIR DINGIN</div>
-                            <div class="mock-tc mock-normal"><div class="mock-ti">&#128167;</div>NORMAL</div>
+                            <div class="mock-tc mock-normal" style="background:rgba(16,185,129,0.18);border:1px solid rgba(16,185,129,0.4);color:#6ee7b7"><div class="mock-ti">&#128167;</div>SUHU NORMAL & STERIL UV</div>
                         </div>
                         <div class="mock-label">Volume</div>
                         <div class="mock-vol-row">
@@ -314,7 +313,7 @@
                             <div class="mock-vc mock-va">500ml &#10003;</div>
                             <div class="mock-vc mock-vi">1000ml</div>
                         </div>
-                        <div class="mock-price"><small>Total Bayar</small>Rp 3.500</div>
+                        <div class="mock-price"><small>Total Bayar</small>Rp 2.500</div>
                         <button class="mock-btn"><i class="fa-solid fa-qrcode"></i> Bayar AiYO QRIS</button>
                     </div>
                 </div>
@@ -338,10 +337,10 @@
             <div class="card-sub">~44 Liter tersisa dari 50L</div>
         </div>
         <div class="status-card card-emerald">
-            <div class="card-icon icon-emerald"><i class="fa-solid fa-temperature-low"></i></div>
-            <div class="card-label">Suhu Air Saat Ini</div>
-            <div class="card-value">7.5&deg;C</div>
-            <div class="cbadge badge-green" style="margin-top:8px"><span style="width:5px;height:5px;background:currentColor;border-radius:50%;display:inline-block;animation:pulse-dot 2s infinite"></span> Optimal COLD</div>
+            <div class="card-icon icon-emerald"><i class="fa-solid fa-droplet"></i></div>
+            <div class="card-label">Sterilisasi UV-C & Suhu</div>
+            <div class="card-value">99.9%</div>
+            <div class="cbadge badge-green" style="margin-top:8px"><span style="width:5px;height:5px;background:currentColor;border-radius:50%;display:inline-block;animation:pulse-dot 2s infinite"></span> Suhu Normal & Steril</div>
         </div>
         <div class="status-card card-purple">
             <div class="card-icon icon-purple"><i class="fa-solid fa-wifi"></i></div>
@@ -448,14 +447,15 @@
         <div class="chart-card">
             <div class="chart-header">
                 <div>
-                    <div class="chart-title">Distribusi Jenis Air</div>
-                    <div class="chart-sub">Cold vs Normal (bulan ini)</div>
+                    <div class="chart-title">Distribusi Volume Terjual</div>
+                    <div class="chart-sub">Perbandingan ukuran botol & gelas</div>
                 </div>
             </div>
             <canvas id="typeChart" style="max-height:180px"></canvas>
             <div style="display:flex;gap:1rem;justify-content:center;margin-top:1rem;font-size:0.72rem;color:var(--muted)">
-                <div style="display:flex;align-items:center;gap:0.4rem"><span style="width:10px;height:10px;border-radius:3px;background:#06b6d4;display:inline-block"></span>Air Dingin (68%)</div>
-                <div style="display:flex;align-items:center;gap:0.4rem"><span style="width:10px;height:10px;border-radius:3px;background:#10b981;display:inline-block"></span>Normal (32%)</div>
+                <div style="display:flex;align-items:center;gap:0.4rem"><span style="width:10px;height:10px;border-radius:3px;background:#06b6d4;display:inline-block"></span>500 ml (55%)</div>
+                <div style="display:flex;align-items:center;gap:0.4rem"><span style="width:10px;height:10px;border-radius:3px;background:#10b981;display:inline-block"></span>1000 ml (30%)</div>
+                <div style="display:flex;align-items:center;gap:0.4rem"><span style="width:10px;height:10px;border-radius:3px;background:#a855f7;display:inline-block"></span>250 ml (15%)</div>
             </div>
         </div>
     </div>
@@ -556,10 +556,10 @@ async function loadTransactions(){
     const tbody=document.getElementById('tx-body');
     // Demo data — ganti dengan fetch('/api/transactions/recent') jika sudah tersedia
     const txs=[
-        {referenceId:'FHK2609160802',invoiceId:'INV-FB7810DF',created_at:'2026-09-16 08:02:05',water_type:'COLD',volume_ml:500,payAmount:3500,status:'PAID'},
+        {referenceId:'FHK2609160802',invoiceId:'INV-FB7810DF',created_at:'2026-09-16 08:02:05',water_type:'NORMAL',volume_ml:500,payAmount:2500,status:'PAID'},
         {referenceId:'FHK2609160755',invoiceId:'INV-A3CC12DE',created_at:'2026-09-16 07:55:30',water_type:'NORMAL',volume_ml:1000,payAmount:4500,status:'COMPLETED'},
-        {referenceId:'FHK2609160722',invoiceId:'INV-BC44FF22',created_at:'2026-09-16 07:22:11',water_type:'COLD',volume_ml:250,payAmount:2000,status:'COMPLETED'},
-        {referenceId:'FHK2609160710',invoiceId:'INV-D1234AB9',created_at:'2026-09-16 07:10:44',water_type:'COLD',volume_ml:1000,payAmount:6000,status:'PAID'},
+        {referenceId:'FHK2609160722',invoiceId:'INV-BC44FF22',created_at:'2026-09-16 07:22:11',water_type:'NORMAL',volume_ml:250,payAmount:1500,status:'COMPLETED'},
+        {referenceId:'FHK2609160710',invoiceId:'INV-D1234AB9',created_at:'2026-09-16 07:10:44',water_type:'NORMAL',volume_ml:1000,payAmount:4500,status:'PAID'},
         {referenceId:'FHK2609160658',invoiceId:'INV-EE98BC01',created_at:'2026-09-16 06:58:33',water_type:'NORMAL',volume_ml:500,payAmount:2500,status:'COMPLETED'},
     ];
     const badge={PAID:'badge-paid',COMPLETED:'badge-completed',PENDING:'badge-pending'};
@@ -605,9 +605,9 @@ function initCharts(){
     });
     new Chart(document.getElementById('typeChart'),{
         type:'doughnut',
-        data:{labels:['Air Dingin','Normal'],datasets:[{data:[68,32],
-            backgroundColor:['rgba(6,182,212,0.8)','rgba(16,185,129,0.8)'],
-            borderColor:['#06b6d4','#10b981'],borderWidth:2,hoverOffset:8}]},
+        data:{labels:['500 ml','1000 ml','250 ml'],datasets:[{data:[55,30,15],
+            backgroundColor:['rgba(6,182,212,0.8)','rgba(16,185,129,0.8)','rgba(168,85,247,0.8)'],
+            borderColor:['#06b6d4','#10b981','#a855f7'],borderWidth:2,hoverOffset:8}]},
         options:{responsive:true,cutout:'72%',plugins:{legend:{display:false}}}
     });
 }
