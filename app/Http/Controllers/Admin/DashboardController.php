@@ -22,12 +22,13 @@ class DashboardController extends Controller
         $kiosks = Kiosk::all();
         $selectedKiosk = Kiosk::with(['filters', 'uvSchedules'])->find($kioskId) ?? $kiosks->first();
 
-        // Statistik transaksi
+        // Statistik transaksi (mencakup status lunas/sedang menuang)
+        $paidStatuses = ['COMPLETED', 'DISPENSING', 'AWAITING_KIOSK_SCAN'];
         $totalTransactions = Transaksi::where('kiosk_id', $kioskId)->count();
-        $completedTransactions = Transaksi::where('kiosk_id', $kioskId)->where('status', 'COMPLETED')->count();
-        $totalRevenue = Transaksi::where('kiosk_id', $kioskId)->where('status', 'COMPLETED')->sum('payAmount');
-        $totalLitersDispensed = Transaksi::where('kiosk_id', $kioskId)->where('status', 'COMPLETED')->sum('volume_ml') / 1000.0;
-        $totalWaterSoldMl = (int) Transaksi::where('kiosk_id', $kioskId)->where('status', 'COMPLETED')->sum('volume_ml');
+        $completedTransactions = Transaksi::where('kiosk_id', $kioskId)->whereIn('status', $paidStatuses)->count();
+        $totalRevenue = Transaksi::where('kiosk_id', $kioskId)->whereIn('status', $paidStatuses)->sum('payAmount');
+        $totalLitersDispensed = Transaksi::where('kiosk_id', $kioskId)->whereIn('status', $paidStatuses)->sum('volume_ml') / 1000.0;
+        $totalWaterSoldMl = (int) Transaksi::where('kiosk_id', $kioskId)->whereIn('status', $paidStatuses)->sum('volume_ml');
         
         $tankCapacityMl = (int) round(($selectedKiosk->tank_capacity_liters ?? 20.0) * 1000.0);
         $remainingWaterMl = (int) round($tankCapacityMl * (($selectedKiosk->current_water_level_pct ?? 100.0) / 100.0));

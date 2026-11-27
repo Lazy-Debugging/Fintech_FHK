@@ -50,4 +50,23 @@ class Kiosk extends Model
     {
         return $this->hasMany(UvSchedule::class, 'kiosk_id', 'id');
     }
+
+    /**
+     * Kurangi kapasitas stok air tangki berdasarkan volume penjualan (mL)
+     */
+    public function deductWater(int $volumeMl): float
+    {
+        $litersUsed = $volumeMl / 1000.0;
+        $tankCapLiters = max(1.0, (float) ($this->tank_capacity_liters ?? 20.0));
+        $newLevelPct = max(0.0, (float) $this->current_water_level_pct - (($litersUsed / $tankCapLiters) * 100.0));
+        $newLevelPct = round($newLevelPct, 1);
+        
+        $this->update([
+            'current_water_level_pct' => $newLevelPct,
+            'status' => ($newLevelPct <= 5.0) ? 'OUT_OF_WATER' : $this->status,
+            'last_heartbeat' => now(),
+        ]);
+
+        return $newLevelPct;
+    }
 }

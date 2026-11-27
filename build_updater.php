@@ -2,6 +2,7 @@
 
 $files = [
     'config/mqtt.php',
+    'app/Models/Kiosk.php',
     'app/Services/MqttKioskService.php',
     'app/Services/FonnteService.php',
     'app/Services/EmailNotificationService.php',
@@ -12,6 +13,7 @@ $files = [
     'app/Http/Controllers/Admin/DashboardController.php',
     'app/Models/KioskPricing.php',
     'resources/views/kiosk/index.blade.php',
+    'resources/views/kiosk/qris_payment.blade.php',
     'resources/views/kiosk/dispensing.blade.php',
     'resources/views/admin/dashboard.blade.php',
     'resources/views/admin/wiring.blade.php',

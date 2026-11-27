@@ -226,15 +226,16 @@ class OrderController extends Controller
             ], 404);
         }
 
-        // Jika pembayaran sudah selesai, langsung arahkan ke penuangan air (Skip QR Pickup)
-        if (in_array($transaksi->status, ['PAID', 'AWAITING_KIOSK_SCAN', 'QUEUED', 'DISPENSING'])) {
-            if ($transaksi->status !== 'DISPENSING') {
-                $transaksi->update(['status' => 'DISPENSING', 'dispense_started_at' => now()]);
-            }
-            try {
-                app(\App\Services\MqttKioskService::class)->dispatchDispenseJob($transaksi);
-            } catch (\Throwable $e) {}
-
+        // Jika pembayaran sudah selesai, arahkan ke layar penuangan air / scan QR kamera kios
+        if (in_array($transaksi->status, ['PAID', 'AWAITING_KIOSK_SCAN', 'QUEUED'])) {
+            return response()->json([
+                'success'       => true,
+                'status'        => $transaksi->status,
+                'isPaid'        => true,
+                'nextActionUrl' => route('kiosk.dispensing', ['invoiceId' => $invoiceId])
+            ]);
+        }
+        if ($transaksi->status === 'DISPENSING') {
             return response()->json([
                 'success'       => true,
                 'status'        => 'DISPENSING',
@@ -263,18 +264,20 @@ class OrderController extends Controller
             ]);
             if ($statusRes['success'] && $statusRes['isPaid']) {
                 $transaksi->update([
-                    'status' => 'DISPENSING',
-                    'dispense_started_at' => now()
+                    'status' => 'AWAITING_KIOSK_SCAN',
                 ]); 
+                $kiosk = Kiosk::find($transaksi->kiosk_id);
+                if ($kiosk) {
+                    $kiosk->deductWater($transaksi->volume_ml);
+                }
                 try {
                     \App\Services\FonnteService::sendPaymentNotification($transaksi);
                     \App\Services\EmailNotificationService::sendPaymentEmail($transaksi);
-                    app(\App\Services\MqttKioskService::class)->dispatchDispenseJob($transaksi);
                 } catch (\Throwable $e) {}
 
                 return response()->json([
                     'success'       => true,
-                    'status'        => 'DISPENSING',
+                    'status'        => 'AWAITING_KIOSK_SCAN',
                     'isPaid'        => true,
                     'nextActionUrl' => route('kiosk.dispensing', ['invoiceId' => $invoiceId])
                 ]);
@@ -320,16 +323,17 @@ class OrderController extends Controller
 
         $transaksi = Transaksi::findOrFail($invoiceId);
         $transaksi->update([
-            'status' => 'PAID'
+            'status' => 'AWAITING_KIOSK_SCAN'
         ]);
 
-        try {
-            app(\App\Services\MqttKioskService::class)->dispatchDispenseJob($transaksi);
-        } catch (\Throwable $e) {}
+        $kiosk = Kiosk::find($transaksi->kiosk_id);
+        if ($kiosk) {
+            $kiosk->deductWater($transaksi->volume_ml);
+        }
 
         return response()->json([
             'success'       => true,
-            'status'        => 'PAID',
+            'status'        => 'AWAITING_KIOSK_SCAN',
             'message'       => 'Pembayaran AiYO QRIS disimulasikan berhasil.',
             'nextActionUrl' => route('kiosk.dispensing', ['invoiceId' => $invoiceId])
         ]);

@@ -357,14 +357,14 @@
 
     // ─── Demo Simulasi Pembayaran ───
     function simulateDemoSuccess() {
-        fetch(`/orders/${invoiceId}/redeem-scan`, {
+        const basePath = window.location.pathname.includes('/fhk') ? '/fhk' : '';
+        fetch(basePath + `/api/kiosk/simulate-paid/${invoiceId}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': '{{ csrf_token() }}',
                 'Accept': 'application/json'
-            },
-            body: JSON.stringify({ kiosk_qr: 'FHK-JAKARTA-01' })
+            }
         })
         .then(() => checkStatus())
         .catch(() => checkStatus());

@@ -285,4 +285,40 @@ class Esp32BridgeController extends Controller
             'receiptUrl' => route('kiosk.receipt', ['invoiceId' => $invoiceId])
         ]);
     }
+
+    /**
+     * Memulai penuangan air secara manual/langsung (Bypass Scan Kamera)
+     */
+    public function triggerDirectDispense(string $invoiceId): JsonResponse
+    {
+        $transaksi = Transaksi::findOrFail($invoiceId);
+        $kioskId = $transaksi->kiosk_id ?? config('aiyo.default_kiosk_id', 'FHK-JAKARTA-01');
+        $kiosk = Kiosk::find($kioskId);
+
+        if ($kiosk && ($kiosk->current_water_level_pct <= 5.0 || $kiosk->status === 'OUT_OF_WATER')) {
+            return response()->json(['success' => false, 'message' => 'Stok air tangki kios habis.'], 422);
+        }
+
+        $transaksi->update([
+            'status'              => 'DISPENSING',
+            'dispense_started_at' => now(),
+            'remarks'             => trim(($transaksi->remarks ?? '') . ' | Tuang Langsung Kiosk ' . date('H:i:s'))
+        ]);
+
+        if ($kiosk) {
+            $kiosk->deductWater($transaksi->volume_ml);
+        }
+
+        try {
+            app(\App\Services\MqttKioskService::class)->dispatchDispenseJob($transaksi);
+        } catch (\Throwable $e) {
+            \Log::warning('Trigger direct dispense MQTT error: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'status'  => 'DISPENSING',
+            'message' => 'Perintah penuangan air berhasil dikirim ke dispenser.'
+        ]);
+    }
 }

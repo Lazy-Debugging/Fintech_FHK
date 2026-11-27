@@ -91,6 +91,9 @@ Route::get('/kiosk/qris/{invoiceId}', [KioskScreenController::class, 'qris'])->n
 Route::get('/kiosk/dispensing/{invoiceId}', [KioskScreenController::class, 'dispensing'])->name('kiosk.dispensing');
 Route::get('/app/fhk/kiosk/dispensing/{invoiceId}', [KioskScreenController::class, 'dispensing']);
 Route::get('/fhk/kiosk/dispensing/{invoiceId}', [KioskScreenController::class, 'dispensing']);
+Route::match(['get', 'post'], '/kiosk/trigger-dispense/{invoiceId}', [\App\Http\Controllers\Iot\Esp32BridgeController::class, 'triggerDirectDispense']);
+Route::match(['get', 'post'], '/app/fhk/kiosk/trigger-dispense/{invoiceId}', [\App\Http\Controllers\Iot\Esp32BridgeController::class, 'triggerDirectDispense']);
+Route::match(['get', 'post'], '/fhk/kiosk/trigger-dispense/{invoiceId}', [\App\Http\Controllers\Iot\Esp32BridgeController::class, 'triggerDirectDispense']);
 
 Route::get('/kiosk/receipt/{invoiceId}', [KioskScreenController::class, 'receipt'])->name('kiosk.receipt');
 Route::get('/app/fhk/kiosk/receipt/{invoiceId}', [KioskScreenController::class, 'receipt']);

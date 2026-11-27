@@ -41,4 +41,5 @@ Route::prefix('iot/kiosk/{kiosk_id}')->group(function () {
 
 // Endpoint status penuangan air untuk PWA frontend
 Route::get('/dispense-status/{invoiceId}', [Esp32BridgeController::class, 'getDispenseStatus'])->name('api.kiosk.dispense_status');
+Route::match(['get', 'post'], '/trigger-dispense/{invoiceId}', [Esp32BridgeController::class, 'triggerDirectDispense'])->name('api.kiosk.trigger_dispense');
 Route::post('/simulate-dispense-complete/{invoiceId}', [Esp32BridgeController::class, 'simulateDispenseComplete'])->name('api.kiosk.simulate_dispense');

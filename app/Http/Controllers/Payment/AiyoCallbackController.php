@@ -142,18 +142,16 @@ class AiyoCallbackController extends Controller
         }
 
         if ($isPaid) {
-            // 7. Update Status Transaksi Menjadi PAID
+            // 7. Update Status Transaksi Menjadi AWAITING_KIOSK_SCAN & Kurangi Stok Air
             $transaksi->update([
-                'status'              => 'DISPENSING',
-                'dispense_started_at' => now(),
+                'status'              => 'AWAITING_KIOSK_SCAN',
                 'remarks'             => trim(($transaksi->remarks ?? '') . ' | Callback AiYO: ' . date('Y-m-d H:i:s'))
             ]);
 
-            // Dispatch instruksi penuangan air ke ESP32 melalui MQTT
-            try {
-                app(\App\Services\MqttKioskService::class)->dispatchDispenseJob($transaksi);
-            } catch (\Throwable $eMqtt) {
-                Log::warning('AiYO Callback MQTT dispatch error: ' . $eMqtt->getMessage());
+            // Potong stok air tangki kios seketika saat pembayaran lunas
+            $kiosk = \App\Models\Kiosk::find($transaksi->kiosk_id);
+            if ($kiosk) {
+                $kiosk->deductWater($transaksi->volume_ml);
             }
 
             // Kirim notifikasi WhatsApp & Email secara eksplisit
@@ -169,7 +167,7 @@ class AiyoCallbackController extends Controller
                 'referenceId' => $transaksi->referenceId,
                 'kiosk_id'    => $transaksi->kiosk_id,
                 'payAmount'   => $transaksi->payAmount,
-                'new_status'  => 'PAID'
+                'new_status'  => 'AWAITING_KIOSK_SCAN'
             ]);
 
             return response()->json([
