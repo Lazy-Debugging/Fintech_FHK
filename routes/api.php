@@ -30,6 +30,7 @@ Route::prefix('iot/kiosk/{kiosk_id}')->group(function () {
     // 1. ESP32 Polling untuk mendapatkan perintah penuangan air (Dispense Job)
     Route::get('/command', [Esp32BridgeController::class, 'getDispenseCommand'])->name('api.iot.command');
     Route::post('/redeem', [Esp32BridgeController::class, 'redeemPickup'])->name('api.iot.redeem');
+    Route::post('/pickup/redeem', [Esp32BridgeController::class, 'redeemPickup']);
     
     // 2. ESP32 Lapor bahwa pengisian air & sterilisasi UV selesai
     Route::post('/dispense-complete', [Esp32BridgeController::class, 'reportDispenseComplete'])->name('api.iot.dispense_complete');
