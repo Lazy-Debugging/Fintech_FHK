@@ -43,6 +43,26 @@
         </div>
     </div>
 
+    <!-- Banner Akses Cepat Konfigurasi Wi-Fi Kios -->
+    <div class="p-4 rounded-2xl bg-gradient-to-r from-sky-950/60 via-slate-900/80 to-blue-950/60 border border-sky-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center text-lg border border-sky-500/30 shrink-0">
+                <i class="fa-solid fa-wifi"></i>
+            </div>
+            <div>
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Pengaturan Koneksi Wi-Fi Kios (Jarak Jauh / Cloud)</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">Aktif</span>
+                </h3>
+                <p class="text-xs text-slate-400">Ganti SSID & Password Wi-Fi unit kios <strong>{{ $selectedKiosk->id }}</strong> dari mana saja tanpa sentuh perangkat.</p>
+            </div>
+        </div>
+        <button onclick="openWifiModal()" class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-extrabold transition flex items-center justify-center gap-2 shadow-md shadow-sky-900/40 shrink-0">
+            <i class="fa-solid fa-gear"></i>
+            <span>Buka Form Ganti Wi-Fi</span>
+        </button>
+    </div>
+
     <!-- KPI Metric Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
